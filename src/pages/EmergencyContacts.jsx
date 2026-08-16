@@ -4,6 +4,7 @@ import { contactAPI } from "../services/api";
 const INITIAL_FORM = {
   name: "",
   phone: "",
+  email: "",
   relationship: "",
   isPrimary: false,
 };
@@ -33,7 +34,10 @@ const EmergencyContacts = () => {
 
       setContacts(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Failed to fetch emergency contacts:", err);
+      console.error(
+        "Failed to fetch emergency contacts:",
+        err
+      );
 
       setError(
         err?.response?.data?.message ||
@@ -78,35 +82,69 @@ const EmergencyContacts = () => {
 
     const trimmedName = form.name.trim();
     const trimmedPhone = form.phone.trim();
+    const trimmedEmail = form.email.trim();
     const trimmedRelationship = form.relationship.trim();
 
-    if (!trimmedName || !trimmedPhone || !trimmedRelationship) {
-      setError("Please fill in all required fields.");
+    /* Required fields */
+
+    if (
+      !trimmedName ||
+      !trimmedPhone ||
+      !trimmedEmail ||
+      !trimmedRelationship
+    ) {
+      setError(
+        "Please fill in name, phone, email and relationship."
+      );
       return;
     }
+
+    /* Phone validation */
 
     if (!/^[0-9+\-\s()]{7,20}$/.test(trimmedPhone)) {
       setError("Please enter a valid phone number.");
       return;
     }
 
+    /* Email validation */
+
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        trimmedEmail
+      )
+    ) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
     try {
       setSaving(true);
 
-      await contactAPI.add({
+      const { data } = await contactAPI.add({
         name: trimmedName,
         phone: trimmedPhone,
+        email: trimmedEmail,
         relationship: trimmedRelationship,
         isPrimary: form.isPrimary,
       });
 
-      setSuccess("Emergency contact added successfully.");
+      console.log(
+        "✅ Emergency contact saved:",
+        data
+      );
+
+      setSuccess(
+        "Emergency contact added successfully."
+      );
 
       resetForm();
 
       await fetchContacts();
     } catch (err) {
-      console.error("Failed to add contact:", err);
+      console.error(
+        "Failed to add contact:",
+        err
+      );
 
       setError(
         err?.response?.data?.message ||
@@ -122,7 +160,9 @@ const EmergencyContacts = () => {
   ===================================================== */
 
   const handleDelete = async (id) => {
-    const contact = contacts.find((item) => item._id === id);
+    const contact = contacts.find(
+      (item) => item._id === id
+    );
 
     const confirmed = window.confirm(
       `Are you sure you want to remove ${
@@ -139,11 +179,16 @@ const EmergencyContacts = () => {
 
       await contactAPI.delete(id);
 
-      setSuccess("Emergency contact removed successfully.");
+      setSuccess(
+        "Emergency contact removed successfully."
+      );
 
       await fetchContacts();
     } catch (err) {
-      console.error("Failed to delete contact:", err);
+      console.error(
+        "Failed to delete contact:",
+        err
+      );
 
       setError(
         err?.response?.data?.message ||
@@ -170,7 +215,12 @@ const EmergencyContacts = () => {
     return (
       <div className="loading">
         <div>
-          <p style={{ textAlign: "center", marginBottom: "0.5rem" }}>
+          <p
+            style={{
+              textAlign: "center",
+              marginBottom: "0.5rem",
+            }}
+          >
             Loading emergency contacts...
           </p>
 
@@ -195,6 +245,7 @@ const EmergencyContacts = () => {
     <div className="safety-tips-page">
 
       {/* PAGE HEADER */}
+
       <div
         className="page-header"
         style={{
@@ -215,9 +266,10 @@ const EmergencyContacts = () => {
           </h1>
 
           <p className="page-description">
-            Add trusted people who can be contacted quickly during
-            an emergency. Your contacts can help you get immediate
-            assistance when you need it most.
+            Add trusted people who can be contacted quickly
+            during an emergency. When SOS is activated,
+            ShaktiShield can send an emergency alert to
+            their email address.
           </p>
         </div>
 
@@ -230,11 +282,14 @@ const EmergencyContacts = () => {
             setSuccess("");
           }}
         >
-          {showForm ? "✕ Cancel" : "＋ Add Contact"}
+          {showForm
+            ? "✕ Cancel"
+            : "＋ Add Contact"}
         </button>
       </div>
 
       {/* SUCCESS MESSAGE */}
+
       {success && (
         <div className="alert alert-success">
           <span>✓</span>
@@ -243,6 +298,7 @@ const EmergencyContacts = () => {
       )}
 
       {/* ERROR MESSAGE */}
+
       {error && (
         <div className="alert alert-error">
           <span>⚠</span>
@@ -262,7 +318,11 @@ const EmergencyContacts = () => {
             marginBottom: "2rem",
           }}
         >
-          <div style={{ marginBottom: "1.5rem" }}>
+          <div
+            style={{
+              marginBottom: "1.5rem",
+            }}
+          >
             <h2
               style={{
                 marginBottom: "0.35rem",
@@ -279,12 +339,14 @@ const EmergencyContacts = () => {
               }}
             >
               Enter the details of someone you trust.
+              Their email will be used for SOS alerts.
             </p>
           </div>
 
           <form onSubmit={handleSubmit}>
 
             {/* NAME */}
+
             <div className="form-group">
               <label htmlFor="contact-name">
                 Full Name *
@@ -304,6 +366,7 @@ const EmergencyContacts = () => {
             </div>
 
             {/* PHONE */}
+
             <div className="form-group">
               <label htmlFor="contact-phone">
                 Phone Number *
@@ -322,7 +385,40 @@ const EmergencyContacts = () => {
               />
             </div>
 
+            {/* EMAIL */}
+
+            <div className="form-group">
+              <label htmlFor="contact-email">
+                Email Address *
+              </label>
+
+              <input
+                id="contact-email"
+                type="email"
+                name="email"
+                value={form.email}
+                onChange={handleChange}
+                placeholder="e.g. priya@gmail.com"
+                maxLength={150}
+                autoComplete="email"
+                required
+              />
+
+              <small
+                style={{
+                  display: "block",
+                  marginTop: "0.35rem",
+                  color: "var(--text-muted)",
+                  fontSize: "0.78rem",
+                }}
+              >
+                SOS emergency alerts will be sent to this
+                email address.
+              </small>
+            </div>
+
             {/* RELATIONSHIP */}
+
             <div className="form-group">
               <label htmlFor="contact-relationship">
                 Relationship *
@@ -378,6 +474,7 @@ const EmergencyContacts = () => {
             </div>
 
             {/* PRIMARY CONTACT */}
+
             <label
               style={{
                 display: "flex",
@@ -406,6 +503,7 @@ const EmergencyContacts = () => {
             </label>
 
             {/* FORM ACTIONS */}
+
             <div
               style={{
                 display: "flex",
@@ -418,7 +516,9 @@ const EmergencyContacts = () => {
                 className="btn btn-primary"
                 disabled={saving}
               >
-                {saving ? "Saving..." : "✓ Save Contact"}
+                {saving
+                  ? "Saving..."
+                  : "✓ Save Contact"}
               </button>
 
               <button
@@ -444,7 +544,8 @@ const EmergencyContacts = () => {
           marginBottom: "1.5rem",
           background:
             "linear-gradient(135deg, #faf5ff, #ffffff)",
-          border: "1px solid rgb(147 51 234 / 0.12)",
+          border:
+            "1px solid rgb(147 51 234 / 0.12)",
         }}
       >
         <div
@@ -460,7 +561,8 @@ const EmergencyContacts = () => {
               height: "45px",
               minWidth: "45px",
               borderRadius: "12px",
-              background: "rgb(147 51 234 / 0.1)",
+              background:
+                "rgb(147 51 234 / 0.1)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -471,7 +573,11 @@ const EmergencyContacts = () => {
           </div>
 
           <div>
-            <h3 style={{ marginBottom: "0.3rem" }}>
+            <h3
+              style={{
+                marginBottom: "0.3rem",
+              }}
+            >
               Keep trusted people close
             </h3>
 
@@ -482,8 +588,9 @@ const EmergencyContacts = () => {
                 lineHeight: 1.6,
               }}
             >
-              Your primary contact can be prioritized when
-              an SOS emergency is triggered.
+              When SOS is triggered, your saved emergency
+              contacts with an email address can receive
+              an emergency notification with your location.
             </p>
           </div>
         </div>
@@ -520,6 +627,7 @@ const EmergencyContacts = () => {
       ) : (
         <>
           {/* CONTACT COUNT */}
+
           <div
             style={{
               display: "flex",
@@ -555,9 +663,7 @@ const EmergencyContacts = () => {
             </div>
           </div>
 
-          {/* =================================================
-              CONTACT GRID
-          ================================================= */}
+          {/* CONTACT GRID */}
 
           <div className="grid grid-2">
 
@@ -568,14 +674,14 @@ const EmergencyContacts = () => {
                 style={{
                   position: "relative",
                   overflow: "hidden",
-                  border:
-                    contact.isPrimary
-                      ? "1px solid rgb(147 51 234 / 0.25)"
-                      : "1px solid var(--border)",
+                  border: contact.isPrimary
+                    ? "1px solid rgb(147 51 234 / 0.25)"
+                    : "1px solid var(--border)",
                 }}
               >
 
                 {/* PRIMARY INDICATOR */}
+
                 {contact.isPrimary && (
                   <div
                     style={{
@@ -591,6 +697,7 @@ const EmergencyContacts = () => {
                 )}
 
                 {/* CONTACT HEADER */}
+
                 <div
                   style={{
                     display: "flex",
@@ -600,7 +707,6 @@ const EmergencyContacts = () => {
                     marginBottom: "1.25rem",
                   }}
                 >
-
                   <div
                     style={{
                       display: "flex",
@@ -608,7 +714,6 @@ const EmergencyContacts = () => {
                       gap: "0.9rem",
                     }}
                   >
-
                     <div
                       style={{
                         width: "50px",
@@ -646,11 +751,11 @@ const EmergencyContacts = () => {
                         </span>
                       )}
                     </div>
-
                   </div>
                 </div>
 
                 {/* CONTACT DETAILS */}
+
                 <div
                   style={{
                     display: "grid",
@@ -658,6 +763,8 @@ const EmergencyContacts = () => {
                     marginBottom: "1.25rem",
                   }}
                 >
+
+                  {/* PHONE */}
 
                   <div
                     style={{
@@ -694,6 +801,52 @@ const EmergencyContacts = () => {
                       </strong>
                     </div>
                   </div>
+
+                  {/* EMAIL */}
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.75rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "1.1rem",
+                      }}
+                    >
+                      ✉️
+                    </span>
+
+                    <div
+                      style={{
+                        minWidth: 0,
+                      }}
+                    >
+                      <small
+                        style={{
+                          display: "block",
+                          color: "var(--text-muted)",
+                          fontSize: "0.72rem",
+                        }}
+                      >
+                        Email
+                      </small>
+
+                      <strong
+                        style={{
+                          fontSize: "0.9rem",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {contact.email ||
+                          "No email added"}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* RELATIONSHIP */}
 
                   <div
                     style={{
@@ -734,6 +887,7 @@ const EmergencyContacts = () => {
                 </div>
 
                 {/* ACTIONS */}
+
                 <div
                   style={{
                     display: "flex",
@@ -743,7 +897,6 @@ const EmergencyContacts = () => {
                       "1px solid var(--border)",
                   }}
                 >
-
                   <button
                     type="button"
                     className="btn btn-primary"
@@ -775,12 +928,9 @@ const EmergencyContacts = () => {
                       ? "Removing..."
                       : "Remove"}
                   </button>
-
                 </div>
-
               </div>
             ))}
-
           </div>
         </>
       )}
