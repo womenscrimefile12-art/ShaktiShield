@@ -2,68 +2,343 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Map from "../components/Map";
 
 /* =========================================================
-   OPENSTREETMAP OVERPASS API
+   OPENSTREETMAP
 ========================================================= */
 
 const OVERPASS_URL =
   "https://overpass-api.de/api/interpreter";
 
-/* =========================================================
-   SEARCH SETTINGS
-========================================================= */
-
-const SEARCH_RADIUS = 5000; // 5 km
+const SEARCH_RADIUS = 10000;
 
 /* =========================================================
-   TYPE CONFIGURATION
+   CATEGORY CONFIG
 ========================================================= */
 
 const typeConfig = {
+  all: {
+    icon: "🌎",
+    label: "All Nearby",
+  },
+
   police: {
     icon: "🚔",
     label: "Police",
-    color: "#2563eb",
-    background: "#eff6ff",
   },
 
   hospital: {
     icon: "🏥",
     label: "Hospital",
-    color: "#dc2626",
-    background: "#fef2f2",
-  },
-
-  shelter: {
-    icon: "🏠",
-    label: "Shelter",
-    color: "#7c3aed",
-    background: "#f5f3ff",
-  },
-
-  community: {
-    icon: "🏛️",
-    label: "Community",
-    color: "#059669",
-    background: "#ecfdf5",
   },
 
   pharmacy: {
     icon: "💊",
     label: "Pharmacy",
-    color: "#0891b2",
-    background: "#ecfeff",
+  },
+
+  mall: {
+    icon: "🛍️",
+    label: "Shopping Mall",
+  },
+
+  supermarket: {
+    icon: "🛒",
+    label: "Supermarket",
+  },
+
+  hotel: {
+    icon: "🏨",
+    label: "Hotel",
+  },
+
+  restaurant: {
+    icon: "🍽️",
+    label: "Restaurant",
+  },
+
+  bank: {
+    icon: "🏦",
+    label: "Bank / ATM",
+  },
+
+  school: {
+    icon: "🏫",
+    label: "School",
+  },
+
+  transport: {
+    icon: "🚌",
+    label: "Transport",
+  },
+
+  fuel: {
+    icon: "⛽",
+    label: "Fuel Station",
+  },
+
+  community: {
+    icon: "🏛️",
+    label: "Community",
+  },
+
+  shop: {
+    icon: "🏪",
+    label: "Shop",
   },
 
   other: {
     icon: "📍",
     label: "Other",
-    color: "#64748b",
-    background: "#f8fafc",
   },
 };
 
 /* =========================================================
-   DISTANCE CALCULATION
+   IMPORTANT PATNA POLICE STATIONS
+
+   These are permanent quick-access places.
+   Directions use Google Maps search so the user gets
+   live routing from their current location.
+========================================================= */
+
+const PATNA_POLICE = [
+  {
+    id: "patna-police-kotwali",
+    name: "Kotwali Police Station",
+    type: "police",
+    area: "Kotwali / Patna Junction Area",
+    address: "Kotwali, Patna, Bihar",
+    phone: "",
+  },
+
+  {
+    id: "patna-police-gandhi-maidan",
+    name: "Gandhi Maidan Police Station",
+    type: "police",
+    area: "Gandhi Maidan",
+    address:
+      "Udyog Bhawan, E Gandhi Maidan Road, Patna, Bihar 800004",
+    phone: "06122673519",
+  },
+
+  {
+    id: "patna-police-kadamkuan",
+    name: "Kadamkuan Police Station",
+    type: "police",
+    area: "Kadamkuan / Rajendra Nagar",
+    address:
+      "Rajendra Nagar, Patna, Bihar 800016",
+    phone: "",
+  },
+
+  {
+    id: "patna-police-kankarbagh",
+    name: "Kankarbagh Police Station",
+    type: "police",
+    area: "Kankarbagh",
+    address:
+      "Malahi Pakdi Road, Housing Board Colony, Kankarbagh, Patna 800020",
+    phone: "06122352563",
+  },
+
+  {
+    id: "patna-police-jakkanpur",
+    name: "Jakkanpur Police Station",
+    type: "police",
+    area: "Mithapur",
+    address:
+      "Mithapur Road, Mithapur, Patna, Bihar 800001",
+    phone: "06122349999",
+  },
+
+  {
+    id: "patna-police-gardanibagh",
+    name: "Gardanibagh Police Station",
+    type: "police",
+    area: "Gardanibagh",
+    address:
+      "Khagaul Road, Gardanibagh, Patna, Bihar 800001",
+    phone: "09431822162",
+  },
+
+  {
+    id: "patna-police-patliputra",
+    name: "Patliputra Police Station",
+    type: "police",
+    area: "Patliputra Colony",
+    address:
+      "North Sri Krishna Puri, Patna, Bihar 800013",
+    phone: "09431822157",
+  },
+
+  {
+    id: "patna-police-shastrinagar",
+    name: "Shastri Nagar Police Station",
+    type: "police",
+    area: "Shastri Nagar",
+    address:
+      "Shastri Nagar Road, Rajbansi Nagar, Patna, Bihar",
+    phone: "09431822121",
+  },
+
+  {
+    id: "patna-police-sachivalaya",
+    name: "Sachivalaya Police Station",
+    type: "police",
+    area: "R-Block / Sachivalaya",
+    address:
+      "Mangles Road, near Satmurti Statue, Sachivalaya, Patna",
+    phone: "09431822161",
+  },
+
+  {
+    id: "patna-police-city-chowk",
+    name: "Patna City Chowk Police Station",
+    type: "police",
+    area: "Patna City",
+    address:
+      "Haji Ganj Road, Jhauganj, Hajiganj, Patna 800008",
+    phone: "06122641831",
+  },
+];
+
+/* =========================================================
+   IMPORTANT PATNA HOSPITALS
+
+   Major government + private hospitals.
+========================================================= */
+
+const PATNA_HOSPITALS = [
+  {
+    id: "patna-hospital-pmch",
+    name: "Patna Medical College & Hospital (PMCH)",
+    type: "hospital",
+    area: "Ashok Rajpath",
+    address:
+      "Ashok Rajpath, Patna, Bihar 800004",
+    phone: "06122300132",
+  },
+
+  {
+    id: "patna-hospital-nmch",
+    name: "Nalanda Medical College & Hospital (NMCH)",
+    type: "hospital",
+    area: "Agam Kuan",
+    address:
+      "Agam Kuan, Patna, Bihar 800007",
+    phone: "06122918523",
+  },
+
+  {
+    id: "patna-hospital-igims",
+    name: "Indira Gandhi Institute of Medical Sciences (IGIMS)",
+    type: "hospital",
+    area: "Sheikhpura",
+    address:
+      "Sheikhpura, Patna, Bihar 800014",
+    phone: "06122297631",
+  },
+
+  {
+    id: "patna-hospital-aiims",
+    name: "AIIMS Patna",
+    type: "hospital",
+    area: "Phulwari Sharif",
+    address:
+      "Phulwari Sharif, Patna, Bihar 801507",
+    phone: "06122451070",
+  },
+
+  {
+    id: "patna-hospital-paras",
+    name: "Paras HMRI Hospital",
+    type: "hospital",
+    area: "Raja Bazar / Bailey Road",
+    address:
+      "NH 30, Bailey Road, Raja Bazar, Patna, Bihar 800014",
+    phone: "06127107700",
+  },
+
+  {
+    id: "patna-hospital-jay-prabha",
+    name: "Jay Prabha Medanta Super Specialty Hospital",
+    type: "hospital",
+    area: "Kankarbagh",
+    address:
+      "Housing Board Colony, Kankarbagh, Patna, Bihar 800020",
+    phone: "06123505050",
+  },
+
+  {
+    id: "patna-hospital-apollo",
+    name: "BIG Apollo Spectra Hospitals",
+    type: "hospital",
+    area: "Agam Kuan",
+    address:
+      "Sheetla Mandir Road, Agam Kuan, Patna, Bihar 800030",
+    phone: "06123540100",
+  },
+
+  {
+    id: "patna-hospital-asian-city",
+    name: "Asian City Hospital",
+    type: "hospital",
+    area: "Patliputra Colony",
+    address:
+      "Patliputra Industrial Area, Patliputra Colony, Patna 800013",
+    phone: "09696396896",
+  },
+
+  {
+    id: "patna-hospital-ford",
+    name: "Ford Hospital & Research Center",
+    type: "hospital",
+    area: "Khemnichak",
+    address:
+      "New Bypass, NH-30, Khemnichak, Patna, Bihar 800030",
+    phone: "09798215884",
+  },
+
+  {
+    id: "patna-hospital-kurji",
+    name: "Kurji Holy Family Hospital",
+    type: "hospital",
+    area: "Kurji",
+    address:
+      "Kurji, Patna, Bihar",
+    phone: "06122262540",
+  },
+
+  {
+    id: "patna-hospital-mahavir",
+    name: "Mahavir Cancer Institute",
+    type: "hospital",
+    area: "Phulwari Sharif",
+    address:
+      "Phulwari Sharif, Patna, Bihar",
+    phone: "06122250127",
+  },
+
+  {
+    id: "patna-hospital-ruban",
+    name: "Ruban Memorial Hospital",
+    type: "hospital",
+    area: "Patliputra Colony",
+    address:
+      "Patliputra Colony, Patna, Bihar",
+    phone: "",
+  },
+];
+
+/* =========================================================
+   ALL FIXED PATNA PLACES
+========================================================= */
+
+const PATNA_EMERGENCY_PLACES = [
+  ...PATNA_POLICE,
+  ...PATNA_HOSPITALS,
+];
+
+/* =========================================================
+   DISTANCE
 ========================================================= */
 
 const getDistanceInKm = (
@@ -81,12 +356,10 @@ const getDistanceInKm = (
     ((lng2 - lng1) * Math.PI) / 180;
 
   const a =
-    Math.sin(dLat / 2) *
-      Math.sin(dLat / 2) +
+    Math.sin(dLat / 2) ** 2 +
     Math.cos((lat1 * Math.PI) / 180) *
       Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+      Math.sin(dLng / 2) ** 2;
 
   const c =
     2 *
@@ -99,37 +372,14 @@ const getDistanceInKm = (
 };
 
 /* =========================================================
-   DESCRIPTION
-========================================================= */
-
-const getDescription = (type) => {
-  switch (type) {
-    case "police":
-      return "Nearby police station mapped in OpenStreetMap.";
-
-    case "hospital":
-      return "Nearby hospital or medical facility mapped in OpenStreetMap.";
-
-    case "shelter":
-      return "Nearby shelter or support facility mapped in OpenStreetMap.";
-
-    case "community":
-      return "Nearby community support facility mapped in OpenStreetMap.";
-
-    case "pharmacy":
-      return "Nearby pharmacy mapped in OpenStreetMap.";
-
-    default:
-      return "Nearby safety-related location mapped in OpenStreetMap.";
-  }
-};
-
-/* =========================================================
-   FORMAT DISTANCE
+   DISTANCE FORMAT
 ========================================================= */
 
 const formatDistance = (distance) => {
-  if (distance === null || distance === undefined) {
+  if (
+    distance === null ||
+    distance === undefined
+  ) {
     return "Distance unavailable";
   }
 
@@ -141,7 +391,126 @@ const formatDistance = (distance) => {
 };
 
 /* =========================================================
-   CONVERT OSM RESULT
+   OSM CATEGORY
+========================================================= */
+
+const getPlaceType = (tags) => {
+  if (tags.amenity === "police") {
+    return "police";
+  }
+
+  if (
+    tags.amenity === "hospital" ||
+    tags.healthcare === "hospital" ||
+    tags.amenity === "clinic" ||
+    tags.healthcare === "clinic"
+  ) {
+    return "hospital";
+  }
+
+  if (
+    tags.amenity === "pharmacy" ||
+    tags.healthcare === "pharmacy"
+  ) {
+    return "pharmacy";
+  }
+
+  if (tags.shop === "mall") {
+    return "mall";
+  }
+
+  if (tags.shop === "supermarket") {
+    return "supermarket";
+  }
+
+  if (
+    tags.tourism === "hotel" ||
+    tags.tourism === "motel" ||
+    tags.tourism === "guest_house" ||
+    tags.tourism === "hostel"
+  ) {
+    return "hotel";
+  }
+
+  if (
+    tags.amenity === "restaurant" ||
+    tags.amenity === "fast_food" ||
+    tags.amenity === "cafe"
+  ) {
+    return "restaurant";
+  }
+
+  if (
+    tags.amenity === "bank" ||
+    tags.amenity === "atm"
+  ) {
+    return "bank";
+  }
+
+  if (
+    tags.amenity === "school" ||
+    tags.amenity === "college" ||
+    tags.amenity === "university"
+  ) {
+    return "school";
+  }
+
+  if (
+    tags.public_transport ||
+    tags.highway === "bus_stop" ||
+    tags.railway === "station" ||
+    tags.railway === "halt" ||
+    tags.amenity === "bus_station"
+  ) {
+    return "transport";
+  }
+
+  if (tags.amenity === "fuel") {
+    return "fuel";
+  }
+
+  if (
+    tags.amenity === "community_centre" ||
+    tags.amenity === "social_centre" ||
+    tags.amenity === "social_facility" ||
+    tags.amenity === "shelter"
+  ) {
+    return "community";
+  }
+
+  if (tags.shop) {
+    return "shop";
+  }
+
+  return "other";
+};
+
+/* =========================================================
+   ADDRESS
+========================================================= */
+
+const getAddress = (tags) => {
+  const parts = [
+    tags["addr:housenumber"],
+    tags["addr:street"],
+    tags["addr:suburb"],
+    tags["addr:neighbourhood"],
+    tags["addr:city"],
+    tags["addr:state"],
+  ].filter(Boolean);
+
+  if (parts.length > 0) {
+    return parts.join(", ");
+  }
+
+  return (
+    tags["addr:full"] ||
+    "Address not available"
+  );
+};
+
+/* =========================================================
+   CONVERT OSM
 ========================================================= */
 
 const convertOSMPlace = (element) => {
@@ -150,13 +519,9 @@ const convertOSMPlace = (element) => {
   let lat = element.lat;
   let lng = element.lon;
 
-  /*
-   * OSM nodes have lat/lon directly.
-   * OSM ways usually have center coordinates.
-   */
-
   if (
-    (!lat || !lng) &&
+    (typeof lat !== "number" ||
+      typeof lng !== "number") &&
     element.center
   ) {
     lat = element.center.lat;
@@ -170,82 +535,28 @@ const convertOSMPlace = (element) => {
     return null;
   }
 
-  /* =======================================================
-     DETERMINE PLACE TYPE
-  ======================================================= */
+  const type = getPlaceType(tags);
 
-  let type = "other";
-
-  if (
-    tags.amenity === "police"
-  ) {
-    type = "police";
-  }
-
-  else if (
-    tags.amenity === "hospital" ||
-    tags.amenity === "clinic"
-  ) {
-    type = "hospital";
-  }
-
-  else if (
-    tags.amenity === "pharmacy"
-  ) {
-    type = "pharmacy";
-  }
-
-  else if (
-    tags.amenity === "shelter" ||
-    tags.social_facility === "shelter"
-  ) {
-    type = "shelter";
-  }
-
-  else if (
-    tags.amenity === "community_centre" ||
-    tags.amenity === "social_centre" ||
-    tags.amenity === "social_facility"
-  ) {
-    type = "community";
-  }
-
-  /* =======================================================
-     ADDRESS
-  ======================================================= */
-
-  const addressParts = [
-    tags["addr:housenumber"],
-    tags["addr:street"],
-    tags["addr:suburb"],
-    tags["addr:city"],
-    tags["addr:state"],
-  ].filter(Boolean);
-
-  const address =
-    addressParts.length > 0
-      ? addressParts.join(", ")
-      : "Address available on map";
-
-  /* =======================================================
-     RETURN STANDARDIZED OBJECT
-  ======================================================= */
+  const config =
+    typeConfig[type] ||
+    typeConfig.other;
 
   return {
-    _id: `osm-${element.type}-${element.id}`,
+    _id:
+      `osm-${element.type}-${element.id}`,
 
     name:
       tags.name ||
-      `${typeConfig[type].label} nearby`,
+      tags.brand ||
+      `${config.label} nearby`,
 
     type,
 
-    address,
+    address: getAddress(tags),
 
     phone:
       tags.phone ||
       tags["contact:phone"] ||
-      tags["contact:mobile"] ||
       "",
 
     website:
@@ -253,16 +564,9 @@ const convertOSMPlace = (element) => {
       tags["contact:website"] ||
       "",
 
-    hours:
+    openingHours:
       tags.opening_hours ||
       "",
-
-    description:
-      getDescription(type),
-
-    verified: false,
-
-    source: "OpenStreetMap",
 
     location: {
       coordinates: [
@@ -270,88 +574,97 @@ const convertOSMPlace = (element) => {
         Number(lat),
       ],
     },
+
+    source: "OpenStreetMap",
   };
 };
 
 /* =========================================================
-   FETCH NEARBY PLACES
+   FETCH OSM
 ========================================================= */
 
 const fetchNearbyPlaces = async (
   lat,
   lng
 ) => {
-  const radius = SEARCH_RADIUS;
-
   const query = `
-    [out:json][timeout:30];
+    [out:json][timeout:60];
 
     (
-      /* POLICE */
+      node["amenity"="police"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="police"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      node["amenity"="police"]
-        (around:${radius},${lat},${lng});
+      node["amenity"="hospital"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="hospital"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      way["amenity"="police"]
-        (around:${radius},${lat},${lng});
+      node["amenity"="clinic"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="clinic"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      /* HOSPITAL */
+      node["amenity"="pharmacy"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="pharmacy"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      node["amenity"="hospital"]
-        (around:${radius},${lat},${lng});
+      node["shop"="mall"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["shop"="mall"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      way["amenity"="hospital"]
-        (around:${radius},${lat},${lng});
+      node["shop"="supermarket"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["shop"="supermarket"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      /* CLINIC */
+      node["tourism"="hotel"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["tourism"="hotel"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      node["amenity"="clinic"]
-        (around:${radius},${lat},${lng});
+      node["tourism"="guest_house"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["tourism"="guest_house"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      way["amenity"="clinic"]
-        (around:${radius},${lat},${lng});
+      node["tourism"="hostel"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["tourism"="hostel"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      /* PHARMACY */
+      node["amenity"="restaurant"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="restaurant"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      node["amenity"="pharmacy"]
-        (around:${radius},${lat},${lng});
+      node["amenity"="cafe"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="cafe"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      way["amenity"="pharmacy"]
-        (around:${radius},${lat},${lng});
+      node["amenity"="fast_food"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="fast_food"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      /* SHELTER */
+      node["amenity"="bank"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="bank"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      node["amenity"="shelter"]
-        (around:${radius},${lat},${lng});
+      node["amenity"="atm"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="atm"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      way["amenity"="shelter"]
-        (around:${radius},${lat},${lng});
+      node["amenity"="school"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="school"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      node["social_facility"="shelter"]
-        (around:${radius},${lat},${lng});
+      node["amenity"="college"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="college"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      way["social_facility"="shelter"]
-        (around:${radius},${lat},${lng});
+      node["amenity"="university"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="university"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      /* COMMUNITY */
+      node["highway"="bus_stop"](around:${SEARCH_RADIUS},${lat},${lng});
+      node["amenity"="bus_station"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="bus_station"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      node["amenity"="community_centre"]
-        (around:${radius},${lat},${lng});
+      node["railway"="station"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["railway"="station"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      way["amenity"="community_centre"]
-        (around:${radius},${lat},${lng});
+      node["railway"="halt"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      node["amenity"="social_centre"]
-        (around:${radius},${lat},${lng});
+      node["amenity"="fuel"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="fuel"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      way["amenity"="social_centre"]
-        (around:${radius},${lat},${lng});
+      node["amenity"="community_centre"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="community_centre"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      node["amenity"="social_facility"]
-        (around:${radius},${lat},${lng});
+      node["amenity"="social_centre"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="social_centre"](around:${SEARCH_RADIUS},${lat},${lng});
 
-      way["amenity"="social_facility"]
-        (around:${radius},${lat},${lng});
+      node["amenity"="shelter"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["amenity"="shelter"](around:${SEARCH_RADIUS},${lat},${lng});
+
+      node["shop"](around:${SEARCH_RADIUS},${lat},${lng});
+      way["shop"](around:${SEARCH_RADIUS},${lat},${lng});
     );
 
     out center tags;
@@ -375,46 +688,57 @@ const fetchNearbyPlaces = async (
 
   if (!response.ok) {
     throw new Error(
-      "Unable to access nearby safety locations."
+      `OpenStreetMap returned error ${response.status}.`
     );
   }
 
   const data =
     await response.json();
 
-  const places =
-    (data.elements || [])
-      .map(convertOSMPlace)
-      .filter(Boolean);
-
-  /*
-   * Remove duplicate OSM locations.
-   */
-
-  const uniquePlaces =
-    Array.from(
-      new Map(
-        places.map((place) => [
+  return Array.from(
+    new Map(
+      (data.elements || [])
+        .map(convertOSMPlace)
+        .filter(Boolean)
+        .map((place) => [
           place._id,
           place,
         ])
-      ).values()
-    );
-
-  return uniquePlaces;
+    ).values()
+  );
 };
 
 /* =========================================================
-   SAFE PLACES COMPONENT
+   GOOGLE MAPS DIRECTIONS
+========================================================= */
+
+const getDirectionsUrl = (
+  place
+) => {
+  const destination = encodeURIComponent(
+    `${place.name}, ${place.address}, Patna, Bihar, India`
+  );
+
+  return (
+    `https://www.google.com/maps/dir/?api=1` +
+    `&destination=${destination}` +
+    `&travelmode=driving`
+  );
+};
+
+/* =========================================================
+   SAFE PLACES
 ========================================================= */
 
 const SafePlaces = () => {
-  /* =======================================================
-     STATE
-  ======================================================= */
-
   const [places, setPlaces] =
     useState([]);
+
+  const [userLocation, setUserLocation] =
+    useState(null);
+
+  const [center, setCenter] =
+    useState(null);
 
   const [loading, setLoading] =
     useState(true);
@@ -431,17 +755,6 @@ const SafePlaces = () => {
   const [error, setError] =
     useState("");
 
-  /*
-   * No Delhi fallback.
-   * The map will wait for the user's actual location.
-   */
-
-  const [center, setCenter] =
-    useState(null);
-
-  const [userLocation, setUserLocation] =
-    useState(null);
-
   const [search, setSearch] =
     useState("");
 
@@ -449,7 +762,7 @@ const SafePlaces = () => {
     useState("all");
 
   /* =======================================================
-     LOAD PLACES
+     LOAD LIVE PLACES
   ======================================================= */
 
   const loadPlaces =
@@ -457,29 +770,25 @@ const SafePlaces = () => {
       async (
         lat,
         lng,
-        showRefresh = false
+        refresh = false
       ) => {
         try {
           setError("");
 
-          if (showRefresh) {
+          if (refresh) {
             setRefreshing(true);
           } else {
             setLoading(true);
           }
 
-          const nearbyPlaces =
+          const result =
             await fetchNearbyPlaces(
               lat,
               lng
             );
 
-          /*
-           * Calculate distance immediately.
-           */
-
-          const placesWithDistance =
-            nearbyPlaces
+          const withDistance =
+            result
               .map((place) => {
                 const [
                   placeLng,
@@ -489,8 +798,10 @@ const SafePlaces = () => {
                     ?.coordinates || [];
 
                 if (
-                  typeof placeLat !== "number" ||
-                  typeof placeLng !== "number"
+                  typeof placeLat !==
+                    "number" ||
+                  typeof placeLng !==
+                    "number"
                 ) {
                   return {
                     ...place,
@@ -530,29 +841,20 @@ const SafePlaces = () => {
               });
 
           setPlaces(
-            placesWithDistance
+            withDistance
           );
-
-          if (
-            placesWithDistance.length === 0
-          ) {
-            setError(
-              "No safety-related locations were found within 5 km of your current location."
-            );
-          }
-
         } catch (err) {
           console.error(
-            "Nearby safety places error:",
+            "Nearby places error:",
             err
           );
 
           setPlaces([]);
 
           setError(
-            "Unable to load nearby safety locations. Please check your internet connection and try again."
+            err.message ||
+              "Unable to load nearby places."
           );
-
         } finally {
           setLoading(false);
           setRefreshing(false);
@@ -562,7 +864,7 @@ const SafePlaces = () => {
     );
 
   /* =======================================================
-     DETECT CURRENT USER LOCATION
+     LOCATION
   ======================================================= */
 
   const detectLocation =
@@ -578,7 +880,7 @@ const SafePlaces = () => {
         setLoading(false);
 
         setLocationError(
-          "Location services are not supported by this browser."
+          "Your browser does not support location services."
         );
 
         return;
@@ -586,57 +888,27 @@ const SafePlaces = () => {
 
       navigator.geolocation.getCurrentPosition(
         async (position) => {
+          const lat =
+            position.coords.latitude;
+
+          const lng =
+            position.coords.longitude;
+
+          setUserLocation({
+            lat,
+            lng,
+          });
+
+          setCenter([
+            lat,
+            lng,
+          ]);
+
           try {
-            const lat =
-              position.coords.latitude;
-
-            const lng =
-              position.coords.longitude;
-
-            console.log(
-              "ShaktiShield current user location:",
-              lat,
-              lng
-            );
-
-            /*
-             * Store exact current location.
-             */
-
-            setUserLocation({
-              lat,
-              lng,
-            });
-
-            /*
-             * Center map on exact location.
-             */
-
-            setCenter([
-              lat,
-              lng,
-            ]);
-
-            /*
-             * Find safety locations
-             * around current location.
-             */
-
             await loadPlaces(
               lat,
               lng
             );
-
-          } catch (err) {
-            console.error(
-              "Location processing error:",
-              err
-            );
-
-            setError(
-              "Unable to find nearby safety places."
-            );
-
           } finally {
             setLocationLoading(false);
           }
@@ -644,7 +916,7 @@ const SafePlaces = () => {
 
         (geoError) => {
           console.error(
-            "Geolocation error:",
+            "GPS error:",
             geoError
           );
 
@@ -656,29 +928,23 @@ const SafePlaces = () => {
             geoError.PERMISSION_DENIED
           ) {
             setLocationError(
-              "Location permission was denied. Please allow location access in your browser settings."
+              "Location permission was denied. Please allow location access and try again."
             );
-          }
-
-          else if (
+          } else if (
             geoError.code ===
             geoError.POSITION_UNAVAILABLE
           ) {
             setLocationError(
-              "Your current location could not be determined. Please check your device location settings."
+              "Your current location could not be determined."
             );
-          }
-
-          else if (
+          } else if (
             geoError.code ===
             geoError.TIMEOUT
           ) {
             setLocationError(
               "Location request timed out. Please try again."
             );
-          }
-
-          else {
+          } else {
             setLocationError(
               "Unable to determine your current location."
             );
@@ -686,21 +952,8 @@ const SafePlaces = () => {
         },
 
         {
-          /*
-           * High accuracy is useful for
-           * safety-location searches.
-           */
-
           enableHighAccuracy: true,
-
-          timeout: 15000,
-
-          /*
-           * Don't use an old position.
-           * This makes the page more
-           * location accurate.
-           */
-
+          timeout: 20000,
           maximumAge: 30000,
         }
       );
@@ -715,48 +968,17 @@ const SafePlaces = () => {
   }, [detectLocation]);
 
   /* =======================================================
-     PROCESS / FILTER PLACES
+     FILTER LIVE PLACES
   ======================================================= */
 
   const processedPlaces =
     useMemo(() => {
+      const searchValue =
+        search
+          .toLowerCase()
+          .trim();
+
       return places
-
-        .map((place) => {
-          const [
-            lng,
-            lat,
-          ] =
-            place.location
-              ?.coordinates || [];
-
-          let distance =
-            place.distance ?? null;
-
-          if (
-            userLocation &&
-            typeof lat === "number" &&
-            typeof lng === "number"
-          ) {
-            distance =
-              getDistanceInKm(
-                userLocation.lat,
-                userLocation.lng,
-                lat,
-                lng
-              );
-          }
-
-          return {
-            ...place,
-            distance,
-          };
-        })
-
-        /*
-         * SEARCH
-         */
-
         .filter((place) => {
           const name =
             place.name
@@ -769,11 +991,6 @@ const SafePlaces = () => {
           const type =
             place.type
               ?.toLowerCase() || "";
-
-          const searchValue =
-            search
-              .toLowerCase()
-              .trim();
 
           const matchesSearch =
             !searchValue ||
@@ -796,11 +1013,6 @@ const SafePlaces = () => {
             matchesType
           );
         })
-
-        /*
-         * NEAREST FIRST
-         */
-
         .sort((a, b) => {
           if (
             a.distance === null
@@ -823,26 +1035,47 @@ const SafePlaces = () => {
       places,
       search,
       selectedType,
-      userLocation,
     ]);
 
   /* =======================================================
-     NEAREST PLACE
+     FIXED PATNA PLACES FILTER
   ======================================================= */
 
-  const nearestPlace =
+  const patnaPlaces =
     useMemo(() => {
-      if (
-        !userLocation ||
-        processedPlaces.length === 0
-      ) {
-        return null;
-      }
+      const searchValue =
+        search
+          .toLowerCase()
+          .trim();
 
-      return processedPlaces[0];
+      return PATNA_EMERGENCY_PLACES.filter(
+        (place) => {
+          const matchesSearch =
+            !searchValue ||
+            place.name
+              .toLowerCase()
+              .includes(searchValue) ||
+            place.address
+              .toLowerCase()
+              .includes(searchValue) ||
+            place.area
+              .toLowerCase()
+              .includes(searchValue);
+
+          const matchesType =
+            selectedType === "all" ||
+            selectedType ===
+              place.type;
+
+          return (
+            matchesSearch &&
+            matchesType
+          );
+        }
+      );
     }, [
-      processedPlaces,
-      userLocation,
+      search,
+      selectedType,
     ]);
 
   /* =======================================================
@@ -872,11 +1105,6 @@ const SafePlaces = () => {
           ] ||
           typeConfig.other;
 
-        const distanceText =
-          formatDistance(
-            place.distance
-          );
-
         return {
           id: place._id,
 
@@ -887,7 +1115,7 @@ const SafePlaces = () => {
 
           popup: `
             <div style="
-              min-width:230px;
+              min-width:220px;
               font-family:Arial,sans-serif;
               line-height:1.5;
             ">
@@ -896,51 +1124,49 @@ const SafePlaces = () => {
                 font-size:15px;
               ">
                 ${config.icon}
-                ${place.name || "Safety Place"}
+                ${place.name}
               </strong>
 
               <br/>
 
               <span style="
                 color:#64748b;
-                font-size:13px;
+                font-size:12px;
               ">
-                ${place.address || "Address unavailable"}
+                ${config.label}
               </span>
-
-              ${
-                place.phone
-                  ? `
-                    <br/>
-                    📞 ${place.phone}
-                  `
-                  : ""
-              }
-
-              ${
-                place.hours
-                  ? `
-                    <br/>
-                    🕐 ${place.hours}
-                  `
-                  : ""
-              }
 
               <br/>
 
               <span style="
-                color:#2563eb;
-                font-weight:bold;
+                color:#64748b;
+                font-size:12px;
               ">
-                📍 ${distanceText}
+                📍 ${place.address}
               </span>
+
+              ${
+                place.phone
+                  ? `<br/>📞 ${place.phone}`
+                  : ""
+              }
+
+              <br/>
+
+              <strong style="
+                color:#2563eb;
+              ">
+                📍 ${formatDistance(
+                  place.distance
+                )}
+              </strong>
 
               <br/>
 
               <small style="
-                color:#64748b;
+                color:#94a3b8;
               ">
-                Data source: OpenStreetMap
+                OpenStreetMap
               </small>
 
             </div>
@@ -950,47 +1176,13 @@ const SafePlaces = () => {
       .filter(Boolean);
 
   /* =======================================================
-     REFRESH
-  ======================================================= */
-
-  const handleRefresh =
-    () => {
-      if (
-        userLocation
-      ) {
-        loadPlaces(
-          userLocation.lat,
-          userLocation.lng,
-          true
-        );
-      } else {
-        detectLocation();
-      }
-    };
-
-  /* =======================================================
      DIRECTIONS
   ======================================================= */
 
   const handleDirections =
     (place) => {
-      const [
-        lng,
-        lat,
-      ] =
-        place.location
-          ?.coordinates || [];
-
-      if (
-        typeof lat !== "number" ||
-        typeof lng !== "number"
-      ) {
-        return;
-      }
-
       const url =
-        `https://www.google.com/maps/dir/?api=1` +
-        `&destination=${lat},${lng}`;
+        getDirectionsUrl(place);
 
       window.open(
         url,
@@ -1005,16 +1197,14 @@ const SafePlaces = () => {
 
   const handleCall =
     (phone) => {
-      if (!phone) {
-        return;
-      }
+      if (!phone) return;
 
       window.location.href =
         `tel:${phone}`;
     };
 
   /* =======================================================
-     EMERGENCY
+     EMERGENCY 112
   ======================================================= */
 
   const handleEmergency =
@@ -1024,33 +1214,51 @@ const SafePlaces = () => {
     };
 
   /* =======================================================
-     LOADING SCREEN
+     REFRESH
+  ======================================================= */
+
+  const handleRefresh =
+    () => {
+      if (userLocation) {
+        loadPlaces(
+          userLocation.lat,
+          userLocation.lng,
+          true
+        );
+      } else {
+        detectLocation();
+      }
+    };
+
+  /* =======================================================
+     LOADING
   ======================================================= */
 
   if (loading) {
     return (
-      <div className="safeplaces-page">
+      <div className="nearby-page">
 
-        <div className="safeplaces-loading">
+        <div className="nearby-loading">
 
-          <div className="location-loader">
+          <div className="nearby-loading-icon">
             📍
           </div>
 
           <h2>
-            Finding Safe Places Near You...
+            Finding Places Near You...
           </h2>
 
           <p>
-            ShaktiShield is detecting your
-            current GPS location and searching
-            nearby police stations, hospitals,
-            pharmacies and support facilities.
+            ShaktiShield is finding nearby
+            police stations, hospitals,
+            pharmacies, shops, hotels,
+            restaurants and other public
+            places.
           </p>
 
-          <div className="location-loading-pill">
-            <span className="pulse-dot" />
-            Using your current location
+          <div className="loading-pill">
+            <span />
+            Using your current GPS location
           </div>
 
         </div>
@@ -1060,92 +1268,77 @@ const SafePlaces = () => {
   }
 
   /* =======================================================
-     MAIN UI
+     MAIN
   ======================================================= */
 
   return (
-    <div className="safeplaces-page">
+    <div className="nearby-page">
 
-      {/* ===================================================
+      {/* =================================================
           HEADER
-      =================================================== */}
+      ================================================= */}
 
-      <div className="safeplaces-header">
+      <div className="nearby-header">
 
         <div>
 
-          <div className="page-eyebrow">
-            🛡️ SHAKTISHIELD SAFETY NETWORK
+          <div className="eyebrow">
+            📍 SHAKTISHIELD LOCATION NETWORK
           </div>
 
-          <h1 className="page-title">
-            Safe Places Near You
+          <h1>
+            Nearby Safe & Emergency Places
           </h1>
 
-          <p className="page-subtitle">
+          <p>
             Find nearby police stations,
-            hospitals, pharmacies, shelters
-            and community support locations
-            based on your current GPS location.
+            hospitals and public places around
+            your current location. Important
+            Patna emergency facilities are also
+            available for quick access.
           </p>
 
         </div>
 
         <button
           className="emergency-button"
-          onClick={
-            handleEmergency
-          }
+          onClick={handleEmergency}
         >
           🚨 Emergency 112
         </button>
 
       </div>
 
-      {/* ===================================================
-          CURRENT LOCATION CARD
-      =================================================== */}
+      {/* =================================================
+          LOCATION
+      ================================================= */}
 
-      <div className="current-location-card card">
+      <div className="location-card">
 
-        <div className="current-location-left">
+        <div className="location-left">
 
-          <div className="gps-icon">
+          <div className="location-icon">
             📍
           </div>
 
           <div>
 
-            <div className="current-location-title">
-              {locationLoading
-                ? "Detecting your location..."
-                : userLocation
-                ? "Your current location"
-                : "Location unavailable"}
-            </div>
+            <strong>
+              Your current location
+            </strong>
 
-            <p className="current-location-text">
-
+            <p>
               {locationError ||
-                (userLocation
-                  ? "Nearby safety places are calculated from your current GPS position."
-                  : "Allow location access to find safe places near you.")}
-
+                "Nearby places are calculated from your current GPS position."}
             </p>
 
             {userLocation && (
               <div className="coordinates">
-
-                <span>
-                  Latitude:{" "}
-                  {userLocation.lat.toFixed(5)}
-                </span>
-
-                <span>
-                  Longitude:{" "}
-                  {userLocation.lng.toFixed(5)}
-                </span>
-
+                Latitude:{" "}
+                {userLocation.lat.toFixed(5)}
+                {"   "}
+                Longitude:{" "}
+                {userLocation.lng.toFixed(5)}
               </div>
             )}
 
@@ -1155,12 +1348,8 @@ const SafePlaces = () => {
 
         <button
           className="location-button"
-          onClick={
-            detectLocation
-          }
-          disabled={
-            locationLoading
-          }
+          onClick={detectLocation}
+          disabled={locationLoading}
         >
           {locationLoading
             ? "Locating..."
@@ -1169,65 +1358,31 @@ const SafePlaces = () => {
 
       </div>
 
-      {/* ===================================================
-          LOCATION NOTICE
-      =================================================== */}
+      {/* =================================================
+          SEARCH
+      ================================================= */}
 
-      {locationError && (
-        <div className="location-help card">
-
-          <div className="help-icon">
-            💡
-          </div>
-
-          <div>
-
-            <strong>
-              Location access is required
-            </strong>
-
-            <p>
-              To show safe places near you,
-              allow location permission in your
-              browser and then click
-              <b> Use My Location</b>.
-            </p>
-
-          </div>
-
-        </div>
-      )}
-
-      {/* ===================================================
-          SEARCH + FILTER
-      =================================================== */}
-
-      <div className="controls card">
+      <div className="controls">
 
         <div className="search-box">
 
-          <span>
-            🔍
-          </span>
+          <span>🔍</span>
 
           <input
-            type="text"
-            placeholder="Search police, hospital, pharmacy..."
             value={search}
             onChange={(e) =>
               setSearch(
                 e.target.value
               )
             }
+            placeholder="Search police stations, hospitals or nearby places..."
           />
 
           {search && (
             <button
-              className="clear-button"
               onClick={() =>
                 setSearch("")
               }
-              aria-label="Clear search"
             >
               ✕
             </button>
@@ -1235,20 +1390,7 @@ const SafePlaces = () => {
 
         </div>
 
-        <div className="filter-row">
-
-          <button
-            className={
-              selectedType === "all"
-                ? "filter-button active"
-                : "filter-button"
-            }
-            onClick={() =>
-              setSelectedType("all")
-            }
-          >
-            🌎 All
-          </button>
+        <div className="filters">
 
           {Object.entries(
             typeConfig
@@ -1258,8 +1400,8 @@ const SafePlaces = () => {
                 key={type}
                 className={
                   selectedType === type
-                    ? "filter-button active"
-                    : "filter-button"
+                    ? "filter active"
+                    : "filter"
                 }
                 onClick={() =>
                   setSelectedType(
@@ -1277,37 +1419,32 @@ const SafePlaces = () => {
 
       </div>
 
-      {/* ===================================================
-          ERROR / NOTICE
-      =================================================== */}
+      {/* =================================================
+          NOTICE
+      ================================================= */}
 
       {(error ||
         locationError) && (
-        <div className="error-card card">
+        <div className="notice">
 
-          <div className="error-content">
+          <div>
+            ⚠️
+          </div>
 
-            <div className="error-icon">
-              ⚠️
-            </div>
+          <div>
 
-            <div>
+            <strong>
+              Nearby Places Notice
+            </strong>
 
-              <strong>
-                Safety Network Notice
-              </strong>
-
-              <p>
-                {error ||
-                  locationError}
-              </p>
-
-            </div>
+            <p>
+              {error ||
+                locationError}
+            </p>
 
           </div>
 
           <button
-            className="secondary-button"
             onClick={
               handleRefresh
             }
@@ -1318,82 +1455,156 @@ const SafePlaces = () => {
         </div>
       )}
 
-      {/* ===================================================
-          NEAREST PLACE HIGHLIGHT
-      =================================================== */}
+      {/* =================================================
+          QUICK EMERGENCY ACCESS
+      ================================================= */}
 
-      {nearestPlace &&
-        !search &&
-        selectedType === "all" && (
-          <div className="nearest-card">
+      <section className="emergency-section">
 
-            <div className="nearest-icon">
-              ⭐
-            </div>
+        <div className="section-heading">
 
-            <div className="nearest-content">
+          <div>
 
-              <span className="nearest-label">
-                NEAREST SAFETY LOCATION
-              </span>
+            <h2>
+              🚨 Patna Emergency Facilities
+            </h2>
 
-              <h2>
-                {nearestPlace.name}
-              </h2>
+            <p>
+              Important police stations and
+              major hospitals for quick access.
+            </p>
 
-              <p>
-                {typeConfig[
-                  nearestPlace.type
-                ]?.icon}{" "}
-                {typeConfig[
-                  nearestPlace.type
-                ]?.label}{" "}
-                •{" "}
-                {formatDistance(
-                  nearestPlace.distance
-                )}
-              </p>
+          </div>
 
-            </div>
+          <span className="verified-badge">
+            Patna
+          </span>
 
-            <button
-              className="nearest-button"
-              onClick={() =>
-                handleDirections(
-                  nearestPlace
-                )
+        </div>
+
+        {patnaPlaces.length === 0 ? (
+          <div className="empty-small">
+            No matching Patna emergency
+            facilities found.
+          </div>
+        ) : (
+          <div className="places-grid">
+
+            {patnaPlaces.map(
+              (place) => {
+
+                const config =
+                  typeConfig[
+                    place.type
+                  ];
+
+                return (
+                  <div
+                    className="place-card emergency-place"
+                    key={
+                      place.id
+                    }
+                  >
+
+                    <div className="place-top">
+
+                      <div className="place-icon">
+                        {config.icon}
+                      </div>
+
+                      <div>
+
+                        <h3>
+                          {place.name}
+                        </h3>
+
+                        <span>
+                          {config.label}
+                        </span>
+
+                      </div>
+
+                    </div>
+
+                    <div className="area">
+                      📌 {place.area}
+                    </div>
+
+                    <p className="address">
+                      📍 {place.address}
+                    </p>
+
+                    {place.phone && (
+                      <p className="phone">
+                        📞 {place.phone}
+                      </p>
+                    )}
+
+                    <div className="source">
+                      🛡️ Patna Emergency Directory
+                    </div>
+
+                    <div className="actions">
+
+                      <button
+                        onClick={() =>
+                          handleDirections(
+                            place
+                          )
+                        }
+                      >
+                        🧭 Directions
+                      </button>
+
+                      {place.phone && (
+                        <button
+                          className="call"
+                          onClick={() =>
+                            handleCall(
+                              place.phone
+                            )
+                          }
+                        >
+                          📞 Call
+                        </button>
+                      )}
+
+                    </div>
+
+                  </div>
+                );
               }
-            >
-              🧭 Go There
-            </button>
+            )}
 
           </div>
         )}
 
-      {/* ===================================================
-          LOCATION SUMMARY
-      =================================================== */}
+      </section>
 
-      <div className="verified-banner">
+      {/* =================================================
+          SUMMARY
+      ================================================= */}
 
-        <div className="verified-banner-icon">
+      <div className="summary">
+
+        <div className="summary-icon">
           📍
         </div>
 
         <div>
 
           <h2>
-            Safety Places Around You
+            Live Places Around You
           </h2>
 
           <p>
-            Locations are searched within
-            5 km of your current GPS position.
+            OpenStreetMap locations within
+            10 km of your GPS position.
           </p>
 
         </div>
 
-        <div className="verified-total">
+        <div className="count">
 
           <strong>
             {processedPlaces.length}
@@ -1407,35 +1618,32 @@ const SafePlaces = () => {
 
       </div>
 
-      {/* ===================================================
+      {/* =================================================
           MAP
-      =================================================== */}
+      ================================================= */}
 
       <div className="map-section">
 
-        <div className="section-header">
+        <div className="section-heading">
 
           <div>
 
             <h2>
-              🗺️ Safety Map
+              🗺️ Nearby Places Map
             </h2>
 
             <p>
-              Showing safety locations
-              around your current position.
+              Live locations around your
+              current position.
             </p>
 
           </div>
 
           <button
-            className="secondary-button"
             onClick={
               handleRefresh
             }
-            disabled={
-              refreshing
-            }
+            disabled={refreshing}
           >
             {refreshing
               ? "↻ Updating..."
@@ -1466,11 +1674,10 @@ const SafePlaces = () => {
 
             <p>
               Allow location access to
-              display safe places around you.
+              display nearby places.
             </p>
 
             <button
-              className="primary-button"
               onClick={
                 detectLocation
               }
@@ -1483,13 +1690,13 @@ const SafePlaces = () => {
 
       </div>
 
-      {/* ===================================================
-          PLACES
-      =================================================== */}
+      {/* =================================================
+          LIVE PLACES
+      ================================================= */}
 
       <div className="places-section">
 
-        <div className="section-header">
+        <div className="section-heading">
 
           <div>
 
@@ -1498,20 +1705,19 @@ const SafePlaces = () => {
             </h2>
 
             <p>
-              Closest safety locations
-              are shown first.
+              Closest live locations are
+              shown first.
             </p>
 
           </div>
 
         </div>
 
-        {processedPlaces.length ===
-        0 ? (
+        {processedPlaces.length === 0 ? (
 
-          <div className="empty-state card">
+          <div className="empty">
 
-            <div className="empty-icon">
+            <div>
               🔍
             </div>
 
@@ -1520,15 +1726,13 @@ const SafePlaces = () => {
             </h3>
 
             <p>
-              No mapped safety locations
-              were found within 5 km of your
-              current location.
+              Try changing the category or
+              refreshing your location.
             </p>
 
             <button
-              className="primary-button"
               onClick={
-                detectLocation
+                handleRefresh
               }
             >
               📍 Detect Location Again
@@ -1541,7 +1745,7 @@ const SafePlaces = () => {
           <div className="places-grid">
 
             {processedPlaces.map(
-              (place, index) => {
+              (place) => {
 
                 const config =
                   typeConfig[
@@ -1549,55 +1753,27 @@ const SafePlaces = () => {
                   ] ||
                   typeConfig.other;
 
-                const isNearest =
-                  index === 0 &&
-                  !search &&
-                  selectedType === "all";
-
                 return (
                   <div
+                    className="place-card"
                     key={
                       place._id
                     }
-                    className={
-                      isNearest
-                        ? "safe-place-card card nearest-place-card"
-                        : "safe-place-card card"
-                    }
                   >
 
-                    {isNearest && (
-                      <div className="nearest-badge">
-                        ⭐ Nearest to you
-                      </div>
-                    )}
+                    <div className="place-top">
 
-                    {/* PLACE HEADER */}
-
-                    <div className="place-header">
-
-                      <div
-                        className="place-icon"
-                        style={{
-                          background:
-                            config.background,
-                        }}
-                      >
+                      <div className="place-icon">
                         {config.icon}
                       </div>
 
-                      <div className="place-title">
+                      <div>
 
                         <h3>
                           {place.name}
                         </h3>
 
-                        <span
-                          style={{
-                            color:
-                              config.color,
-                          }}
-                        >
+                        <span>
                           {config.label}
                         </span>
 
@@ -1605,104 +1781,37 @@ const SafePlaces = () => {
 
                     </div>
 
-                    {/* IMAGE / VISUAL AREA */}
-
-                    <div
-                      className="place-visual"
-                      style={{
-                        background:
-                          `linear-gradient(135deg, ${config.background}, #ffffff)`,
-                      }}
-                    >
-
-                      <div className="visual-icon">
-                        {config.icon}
-                      </div>
-
-                      <div>
-
-                        <strong>
-                          Nearby Safety Support
-                        </strong>
-
-                        <span>
-                          OpenStreetMap location
-                        </span>
-
-                      </div>
-
+                    <div className="distance">
+                      📍{" "}
+                      {formatDistance(
+                        place.distance
+                      )}
                     </div>
 
-                    {/* DESCRIPTION */}
+                    <p className="address">
+                      📍 {place.address}
+                    </p>
 
-                    {place.description && (
-                      <p className="place-description">
-                        {place.description}
+                    {place.phone && (
+                      <p className="phone">
+                        📞 {place.phone}
                       </p>
                     )}
 
-                    {/* DISTANCE */}
-
-                    <div className="distance-highlight">
-
-                      <span>
-                        📍 Distance from you
-                      </span>
-
-                      <strong>
-                        {formatDistance(
-                          place.distance
-                        )}
-                      </strong>
-
-                    </div>
-
-                    {/* INFORMATION */}
-
-                    <div className="place-info">
-
-                      <p>
-                        📍{" "}
-                        {place.address ||
-                          "Address unavailable"}
+                    {place.openingHours && (
+                      <p className="hours">
+                        🕐{" "}
+                        {place.openingHours}
                       </p>
+                    )}
 
-                      {place.phone && (
-                        <p>
-                          📞{" "}
-                          {place.phone}
-                        </p>
-                      )}
-
-                      {place.hours && (
-                        <p>
-                          🕐{" "}
-                          {place.hours}
-                        </p>
-                      )}
-
+                    <div className="source">
+                      🗺️ OpenStreetMap
                     </div>
 
-                    {/* SOURCE */}
-
-                    <div className="source-row">
-
-                      <span>
-                        🗺️ OpenStreetMap
-                      </span>
-
-                      <span>
-                        Location data
-                      </span>
-
-                    </div>
-
-                    {/* ACTIONS */}
-
-                    <div className="place-actions">
+                    <div className="actions">
 
                       <button
-                        className="primary-button"
                         onClick={() =>
                           handleDirections(
                             place
@@ -1714,7 +1823,7 @@ const SafePlaces = () => {
 
                       {place.phone && (
                         <button
-                          className="call-button"
+                          className="call"
                           onClick={() =>
                             handleCall(
                               place.phone
@@ -1733,118 +1842,65 @@ const SafePlaces = () => {
             )}
 
           </div>
+
         )}
 
       </div>
 
-      {/* ===================================================
+      {/* =================================================
           HOW IT WORKS
-      =================================================== */}
+      ================================================= */}
 
-      <div className="how-it-works card">
+      <div className="info-card">
 
-        <div className="how-header">
-
-          <div className="how-icon">
-            🛡️
-          </div>
-
-          <div>
-
-            <h2>
-              How ShaktiShield Finds Safe Places
-            </h2>
-
-            <p>
-              Your safety comes first.
-            </p>
-
-          </div>
-
+        <div className="info-icon">
+          🛡️
         </div>
 
-        <div className="steps-grid">
+        <div>
 
-          <div className="step">
+          <h3>
+            How ShaktiShield Finds Places
+          </h3>
 
-            <div className="step-number">
-              1
+          <p>
+            ShaktiShield combines live
+            OpenStreetMap results with a
+            curated Patna emergency directory.
+            This means important police
+            stations and hospitals remain easy
+            to access even when live map data
+            is incomplete.
+          </p>
+
+          <div className="info-grid">
+
+            <div>
+              <strong>1</strong>
+              <span>
+                📍 GPS Location
+              </span>
             </div>
 
             <div>
-
-              <strong>
-                📍 Your Location
-              </strong>
-
-              <p>
-                Your browser provides your
-                current GPS coordinates.
-              </p>
-
-            </div>
-
-          </div>
-
-          <div className="step">
-
-            <div className="step-number">
-              2
-            </div>
-
-            <div>
-
-              <strong>
+              <strong>2</strong>
+              <span>
                 🔎 Nearby Search
-              </strong>
-
-              <p>
-                ShaktiShield searches safety
-                facilities within 5 km.
-              </p>
-
-            </div>
-
-          </div>
-
-          <div className="step">
-
-            <div className="step-number">
-              3
+              </span>
             </div>
 
             <div>
-
-              <strong>
+              <strong>3</strong>
+              <span>
                 📏 Distance
-              </strong>
-
-              <p>
-                Places are sorted from nearest
-                to farthest.
-              </p>
-
-            </div>
-
-          </div>
-
-          <div className="step">
-
-            <div className="step-number">
-              4
+              </span>
             </div>
 
             <div>
-
-              <strong>
-                🧭 Get Directions
-              </strong>
-
-              <p>
-                Open Google Maps to navigate
-                to the selected location.
-              </p>
-
+              <strong>4</strong>
+              <span>
+                🧭 Directions
+              </span>
             </div>
 
           </div>
@@ -1853,14 +1909,14 @@ const SafePlaces = () => {
 
       </div>
 
-      {/* ===================================================
+      {/* =================================================
           SAFETY NOTICE
-      =================================================== */}
+      ================================================= */}
 
-      <div className="safety-notice card">
+      <div className="safety-notice">
 
-        <div className="notice-icon">
-          🛡️
+        <div className="safety-icon">
+          🚨
         </div>
 
         <div>
@@ -1870,220 +1926,152 @@ const SafePlaces = () => {
           </h3>
 
           <p>
-            Locations are retrieved from
-            OpenStreetMap and may not be
-            personally verified by
-            ShaktiShield. Map data may
-            sometimes be incomplete or
-            outdated. Always confirm the
-            location before relying on it
-            in an emergency.
+            For immediate danger, do not wait
+            for the map or nearby-place search.
+            Call emergency services immediately.
           </p>
 
-          <p className="emergency-note">
-            🚨 For immediate emergencies
-            in India, call <strong>112</strong>.
-          </p>
+          <button
+            className="call-112"
+            onClick={
+              handleEmergency
+            }
+          >
+            🚨 Call Emergency 112
+          </button>
 
         </div>
 
       </div>
 
-      {/* ===================================================
-          PAGE CSS
-      =================================================== */}
+      {/* =================================================
+          CSS
+      ================================================= */}
 
       <style>{`
 
-        /* ================================================
-           MAIN
-        ================================================ */
-
-        .safeplaces-page {
-          width: 100%;
-          max-width: 1400px;
-          margin: 0 auto;
-          padding: 20px;
+        * {
           box-sizing: border-box;
         }
 
-        /* ================================================
-           HEADER
-        ================================================ */
+        .nearby-page {
+          width: 100%;
+          max-width: 1400px;
+          margin: auto;
+          padding: 24px;
+        }
 
-        .safeplaces-header {
+        .nearby-header {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          gap: 20px;
-          margin-bottom: 25px;
+          gap: 24px;
+          margin-bottom: 24px;
         }
 
-        .page-eyebrow {
-          font-size: 12px;
+        .eyebrow {
+          font-size: 11px;
           font-weight: 800;
           letter-spacing: 1.5px;
-          color: var(--primary);
+          color: var(--primary, #7c3aed);
           margin-bottom: 8px;
         }
 
-        .page-title {
+        .nearby-header h1 {
           margin: 0 0 8px;
-          font-size: 32px;
+          font-size: 34px;
           font-weight: 850;
-          line-height: 1.15;
         }
 
-        .page-subtitle {
-          color: var(--text-muted);
-          max-width: 720px;
-          line-height: 1.6;
+        .nearby-header p {
+          max-width: 780px;
           margin: 0;
+          color: var(--text-muted, #64748b);
+          line-height: 1.65;
         }
-
-        /* ================================================
-           EMERGENCY
-        ================================================ */
 
         .emergency-button {
           border: none;
           border-radius: 12px;
-          padding: 13px 18px;
+          padding: 14px 18px;
           background: #dc2626;
           color: white;
-          font-weight: 700;
+          font-weight: 800;
           cursor: pointer;
           white-space: nowrap;
-          box-shadow:
-            0 8px 20px
-            rgba(220, 38, 38, 0.25);
-          transition: 0.2s;
+          box-shadow: 0 8px 20px rgba(220,38,38,.2);
         }
 
         .emergency-button:hover {
-          transform: translateY(-2px);
           background: #b91c1c;
+          transform: translateY(-1px);
         }
 
-        /* ================================================
-           CURRENT LOCATION
-        ================================================ */
-
-        .current-location-card {
+        .location-card {
           display: flex;
           justify-content: space-between;
           align-items: center;
           gap: 20px;
           padding: 18px;
-          margin-bottom: 20px;
+          margin-bottom: 18px;
+          border-radius: 16px;
+          background: #eff6ff;
           border: 1px solid #bfdbfe;
-          background:
-            linear-gradient(
-              135deg,
-              #eff6ff,
-              #ffffff
-            );
         }
 
-        .current-location-left {
+        .location-left {
           display: flex;
           align-items: center;
           gap: 14px;
-          min-width: 0;
         }
 
-        .gps-icon {
+        .location-icon {
           width: 54px;
           height: 54px;
           display: grid;
           place-items: center;
-          border-radius: 16px;
+          border-radius: 15px;
           background: #dbeafe;
           font-size: 26px;
-          flex-shrink: 0;
         }
 
-        .current-location-title {
-          font-size: 16px;
-          font-weight: 800;
+        .location-left strong {
           color: #1e3a8a;
+          font-size: 16px;
         }
 
-        .current-location-text {
-          margin: 5px 0 0;
-          color: var(--text-muted);
+        .location-left p {
+          margin: 5px 0;
+          color: #64748b;
           font-size: 13px;
-          line-height: 1.5;
         }
 
         .coordinates {
-          display: flex;
-          gap: 12px;
-          flex-wrap: wrap;
-          margin-top: 8px;
+          font-family: monospace;
           color: #475569;
           font-size: 11px;
-          font-family: monospace;
         }
 
         .location-button {
           border: none;
-          border-radius: 11px;
+          border-radius: 10px;
           padding: 11px 16px;
           background: #2563eb;
           color: white;
           font-weight: 800;
           cursor: pointer;
-          white-space: nowrap;
-          transition: 0.2s;
-        }
-
-        .location-button:hover {
-          transform: translateY(-2px);
-          background: #1d4ed8;
         }
 
         .location-button:disabled {
-          opacity: 0.6;
+          opacity: .6;
           cursor: not-allowed;
-          transform: none;
         }
-
-        /* ================================================
-           LOCATION HELP
-        ================================================ */
-
-        .location-help {
-          display: flex;
-          gap: 14px;
-          align-items: flex-start;
-          padding: 15px;
-          margin-bottom: 20px;
-          border-left: 4px solid #f59e0b;
-          background: #fffbeb;
-        }
-
-        .help-icon {
-          font-size: 24px;
-        }
-
-        .location-help strong {
-          color: #92400e;
-        }
-
-        .location-help p {
-          margin: 5px 0 0;
-          color: #78350f;
-          line-height: 1.5;
-          font-size: 13px;
-        }
-
-        /* ================================================
-           CONTROLS
-        ================================================ */
 
         .controls {
           padding: 16px;
+          border-radius: 16px;
+          background: white;
+          border: 1px solid #e2e8f0;
           margin-bottom: 20px;
         }
 
@@ -2091,288 +2079,176 @@ const SafePlaces = () => {
           display: flex;
           align-items: center;
           gap: 10px;
-          border: 1px solid
-            rgba(128, 128, 128, 0.25);
+          border: 1px solid #e2e8f0;
           border-radius: 12px;
-          padding: 10px 13px;
-          margin-bottom: 15px;
-          background: white;
+          padding: 11px 13px;
+          margin-bottom: 14px;
         }
 
         .search-box input {
           flex: 1;
-          min-width: 0;
           border: none;
           outline: none;
-          background: transparent;
-          color: inherit;
           font-size: 15px;
+          background: transparent;
         }
 
-        .clear-button {
+        .search-box button {
           border: none;
           background: transparent;
           cursor: pointer;
-          font-size: 16px;
-          padding: 3px 6px;
         }
 
-        .filter-row {
+        .filters {
           display: flex;
           flex-wrap: wrap;
           gap: 8px;
         }
 
-        .filter-button {
+        .filter {
           border: none;
           border-radius: 10px;
-          padding: 9px 13px;
-          background:
-            rgba(128, 128, 128, 0.1);
-          color: inherit;
-          cursor: pointer;
-          font-weight: 600;
-          transition: 0.2s;
-        }
-
-        .filter-button:hover {
-          transform: translateY(-1px);
-        }
-
-        .filter-button.active {
-          background:
-            var(--primary, #7c3aed);
-          color: white;
-        }
-
-        /* ================================================
-           BUTTONS
-        ================================================ */
-
-        .secondary-button,
-        .primary-button,
-        .call-button {
-          border: none;
-          border-radius: 10px;
-          padding: 10px 14px;
+          padding: 9px 12px;
+          background: #f1f5f9;
           cursor: pointer;
           font-weight: 700;
-          transition: 0.2s;
         }
 
-        .secondary-button {
-          background:
-            rgba(128, 128, 128, 0.12);
-          color: inherit;
+        .filter:hover {
+          background: #e2e8f0;
         }
 
-        .primary-button {
-          background:
-            var(--primary, #7c3aed);
+        .filter.active {
+          background: #7c3aed;
           color: white;
         }
 
-        .call-button {
-          background: #16a34a;
-          color: white;
-        }
-
-        .secondary-button:hover,
-        .primary-button:hover,
-        .call-button:hover {
-          transform: translateY(-2px);
-          opacity: 0.92;
-        }
-
-        .secondary-button:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-          transform: none;
-        }
-
-        /* ================================================
-           ERROR
-        ================================================ */
-
-        .error-card {
+        .notice {
           display: flex;
-          justify-content: space-between;
           align-items: center;
-          gap: 15px;
+          gap: 12px;
           padding: 15px;
           margin-bottom: 20px;
-          border-left: 4px solid #dc2626;
-          background: #fff7f7;
+          border-left: 4px solid #f59e0b;
+          border-radius: 10px;
+          background: #fffbeb;
         }
 
-        .error-content {
-          display: flex;
-          gap: 12px;
-          align-items: flex-start;
+        .notice p {
+          margin: 4px 0 0;
+          color: #78350f;
+          font-size: 13px;
         }
 
-        .error-icon {
-          font-size: 22px;
-        }
-
-        .error-card strong {
-          color: #991b1b;
-        }
-
-        .error-card p {
-          margin: 5px 0 0;
-          color: var(--text-muted);
-          line-height: 1.5;
-        }
-
-        /* ================================================
-           NEAREST CARD
-        ================================================ */
-
-        .nearest-card {
-          display: flex;
-          align-items: center;
-          gap: 15px;
-          padding: 18px;
-          margin: 25px 0;
-          border-radius: 18px;
+        .notice button {
+          margin-left: auto;
+          border: none;
+          border-radius: 8px;
+          padding: 9px 13px;
+          background: #7c3aed;
           color: white;
+          cursor: pointer;
+          font-weight: 700;
+        }
+
+        .emergency-section {
+          margin: 30px 0;
+          padding: 20px;
+          border-radius: 18px;
           background:
             linear-gradient(
               135deg,
-              #7c3aed,
-              #4f46e5
+              #fff7ed,
+              #ffffff
             );
-          box-shadow:
-            0 12px 30px
-            rgba(79, 70, 229, 0.22);
+          border: 1px solid #fed7aa;
         }
 
-        .nearest-icon {
+        .verified-badge {
+          padding: 8px 12px;
+          border-radius: 20px;
+          background: #fef3c7;
+          color: #92400e;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        .emergency-place {
+          border-color: #fed7aa;
+        }
+
+        .emergency-place:hover {
+          border-color: #fb923c;
+        }
+
+        .area {
+          margin-top: 12px;
+          padding: 8px 10px;
+          border-radius: 8px;
+          background: #fff7ed;
+          color: #9a3412;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .summary {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 18px;
+          margin: 20px 0;
+          border-radius: 16px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+        }
+
+        .summary-icon {
           width: 52px;
           height: 52px;
           display: grid;
           place-items: center;
-          border-radius: 15px;
-          background:
-            rgba(255,255,255,0.16);
-          font-size: 25px;
-          flex-shrink: 0;
-        }
-
-        .nearest-content {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .nearest-label {
-          display: block;
-          font-size: 10px;
-          font-weight: 900;
-          letter-spacing: 1.2px;
-          opacity: 0.8;
-        }
-
-        .nearest-content h2 {
-          margin: 4px 0;
-          font-size: 19px;
-        }
-
-        .nearest-content p {
-          margin: 0;
-          font-size: 13px;
-          opacity: 0.9;
-        }
-
-        .nearest-button {
-          border: none;
-          border-radius: 10px;
-          padding: 10px 14px;
-          background: white;
-          color: #4f46e5;
-          font-weight: 800;
-          cursor: pointer;
-          white-space: nowrap;
-        }
-
-        /* ================================================
-           RESULTS BANNER
-        ================================================ */
-
-        .verified-banner {
-          display: flex;
-          align-items: center;
-          gap: 15px;
-          padding: 18px;
-          margin: 25px 0;
-          border-radius: 18px;
-          background:
-            linear-gradient(
-              135deg,
-              #eff6ff,
-              #ffffff
-            );
-          border: 1px solid #bfdbfe;
-          box-shadow:
-            0 8px 25px
-            rgba(37, 99, 235, 0.07);
-        }
-
-        .verified-banner-icon {
-          width: 55px;
-          height: 55px;
-          display: grid;
-          place-items: center;
-          border-radius: 15px;
+          border-radius: 14px;
           background: #dbeafe;
-          font-size: 27px;
-          flex-shrink: 0;
+          font-size: 25px;
         }
 
-        .verified-banner h2 {
-          margin: 0 0 3px;
-          font-size: 20px;
-          color: #1d4ed8;
-        }
-
-        .verified-banner p {
+        .summary h2 {
           margin: 0;
-          color: var(--text-muted);
+          font-size: 20px;
+        }
+
+        .summary p {
+          margin: 4px 0 0;
+          color: #64748b;
           font-size: 13px;
         }
 
-        .verified-total {
+        .count {
           margin-left: auto;
+          min-width: 75px;
           text-align: center;
-          padding: 8px 16px;
-          border-radius: 12px;
+          padding: 8px 12px;
+          border-radius: 10px;
           background: white;
-          border: 1px solid #dbeafe;
-          flex-shrink: 0;
         }
 
-        .verified-total strong {
+        .count strong {
           display: block;
-          color: #2563eb;
           font-size: 20px;
+          color: #2563eb;
         }
 
-        .verified-total span {
-          display: block;
-          color: var(--text-muted);
+        .count span {
           font-size: 11px;
+          color: #64748b;
         }
-
-        /* ================================================
-           MAP
-        ================================================ */
 
         .map-section,
         .places-section {
-          margin-top: 25px;
+          margin-top: 30px;
         }
 
-        .section-header {
+        .section-heading {
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -2380,99 +2256,85 @@ const SafePlaces = () => {
           margin-bottom: 15px;
         }
 
-        .section-header h2 {
+        .section-heading h2 {
           margin: 0;
           font-size: 22px;
         }
 
-        .section-header p {
+        .section-heading p {
           margin: 4px 0 0;
-          color: var(--text-muted);
-          font-size: 14px;
+          color: #64748b;
+          font-size: 13px;
+        }
+
+        .section-heading button {
+          border: none;
+          border-radius: 9px;
+          padding: 9px 13px;
+          background: #f1f5f9;
+          cursor: pointer;
+          font-weight: 700;
+        }
+
+        .section-heading button:hover {
+          background: #e2e8f0;
         }
 
         .map-placeholder {
           min-height: 420px;
           display: flex;
           flex-direction: column;
-          justify-content: center;
           align-items: center;
+          justify-content: center;
           text-align: center;
-          padding: 20px;
-          border-radius: 18px;
+          border-radius: 16px;
           background: #f8fafc;
-          border: 1px solid #e2e8f0;
         }
 
         .map-placeholder > div {
           font-size: 50px;
-          margin-bottom: 8px;
-        }
-
-        .map-placeholder h3 {
-          margin: 5px 0;
         }
 
         .map-placeholder p {
-          color: var(--text-muted);
-          max-width: 450px;
-          line-height: 1.5;
+          color: #64748b;
         }
 
-        /* ================================================
-           PLACES GRID
-        ================================================ */
+        .map-placeholder button {
+          border: none;
+          border-radius: 10px;
+          padding: 11px 15px;
+          background: #7c3aed;
+          color: white;
+          font-weight: 700;
+          cursor: pointer;
+        }
 
         .places-grid {
           display: grid;
           grid-template-columns:
-            repeat(
-              auto-fit,
-              minmax(300px, 1fr)
-            );
+            repeat(auto-fit, minmax(290px, 1fr));
           gap: 16px;
         }
 
-        .safe-place-card {
+        .place-card {
           padding: 18px;
-          transition: 0.2s;
-          position: relative;
-          overflow: hidden;
+          border-radius: 16px;
+          background: white;
+          border: 1px solid #e2e8f0;
+          transition: .2s;
         }
 
-        .safe-place-card:hover {
-          transform: translateY(-4px);
-          border-color: #bfdbfe;
+        .place-card:hover {
+          transform: translateY(-3px);
           box-shadow:
-            0 15px 35px
-            rgba(30, 27, 75, 0.1);
+            0 12px 30px
+            rgba(0,0,0,.08);
         }
 
-        .nearest-place-card {
-          border: 2px solid #8b5cf6;
-        }
-
-        .nearest-badge {
-          position: absolute;
-          top: 0;
-          right: 0;
-          padding: 6px 10px;
-          border-radius:
-            0 0 0 10px;
-          background: #7c3aed;
-          color: white;
-          font-size: 10px;
-          font-weight: 800;
-        }
-
-        /* ================================================
-           PLACE HEADER
-        ================================================ */
-
-        .place-header {
+        .place-top {
           display: flex;
-          align-items: flex-start;
           gap: 12px;
+          align-items: center;
         }
 
         .place-icon {
@@ -2480,309 +2342,200 @@ const SafePlaces = () => {
           height: 50px;
           display: grid;
           place-items: center;
-          border-radius: 12px;
+          border-radius: 13px;
+          background: #f1f5f9;
           font-size: 24px;
           flex-shrink: 0;
         }
 
-        .place-title {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .place-title h3 {
+        .place-top h3 {
           margin: 0;
-          font-size: 17px;
+          font-size: 16px;
           line-height: 1.35;
         }
 
-        .place-title span {
+        .place-top span {
           display: inline-block;
           margin-top: 4px;
-          font-size: 13px;
-          font-weight: 700;
-        }
-
-        /* ================================================
-           VISUAL AREA
-        ================================================ */
-
-        .place-visual {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          min-height: 75px;
-          margin-top: 15px;
-          padding: 12px;
-          border-radius: 14px;
-        }
-
-        .visual-icon {
-          width: 48px;
-          height: 48px;
-          display: grid;
-          place-items: center;
-          border-radius: 12px;
-          background: white;
-          font-size: 25px;
-          box-shadow:
-            0 4px 12px
-            rgba(0,0,0,0.05);
-        }
-
-        .place-visual strong {
-          display: block;
-          font-size: 13px;
-        }
-
-        .place-visual span {
-          display: block;
-          margin-top: 3px;
-          color: var(--text-muted);
-          font-size: 11px;
-        }
-
-        /* ================================================
-           DESCRIPTION
-        ================================================ */
-
-        .place-description {
-          margin: 14px 0 0;
-          color: var(--text-muted);
-          font-size: 13px;
-          line-height: 1.6;
-        }
-
-        /* ================================================
-           DISTANCE
-        ================================================ */
-
-        .distance-highlight {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-          margin-top: 14px;
-          padding: 10px 12px;
-          border-radius: 10px;
-          background: #f0fdf4;
-          border: 1px solid #bbf7d0;
-        }
-
-        .distance-highlight span {
-          color: #166534;
+          color: #7c3aed;
           font-size: 12px;
-          font-weight: 700;
+          font-weight: 800;
         }
 
-        .distance-highlight strong {
-          color: #15803d;
+        .distance {
+          margin-top: 14px;
+          padding: 9px 11px;
+          border-radius: 9px;
+          background: #eff6ff;
+          color: #1d4ed8;
+          font-weight: 800;
           font-size: 13px;
         }
 
-        /* ================================================
-           INFORMATION
-        ================================================ */
-
-        .place-info {
-          margin: 16px 0;
-        }
-
-        .place-info p {
-          margin: 8px 0;
-          color: var(--text-muted);
-          font-size: 14px;
+        .address,
+        .phone,
+        .hours {
+          color: #64748b;
+          font-size: 13px;
           line-height: 1.5;
         }
 
-        /* ================================================
-           SOURCE
-        ================================================ */
+        .address {
+          margin-top: 14px;
+        }
 
-        .source-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-          margin: 12px 0;
-          padding: 8px 10px;
-          border-radius: 9px;
+        .source {
+          margin-top: 12px;
+          padding: 7px 9px;
+          border-radius: 8px;
           background: #f8fafc;
           color: #64748b;
           font-size: 11px;
           font-weight: 700;
         }
 
-        /* ================================================
-           ACTIONS
-        ================================================ */
-
-        .place-actions {
+        .actions {
           display: flex;
           gap: 8px;
+          margin-top: 14px;
         }
 
-        .place-actions button {
+        .actions button {
           flex: 1;
+          border: none;
+          border-radius: 9px;
+          padding: 10px;
+          background: #7c3aed;
+          color: white;
+          cursor: pointer;
+          font-weight: 700;
         }
 
-        /* ================================================
-           EMPTY STATE
-        ================================================ */
+        .actions button:hover {
+          opacity: .9;
+        }
 
-        .empty-state {
+        .actions .call {
+          background: #16a34a;
+        }
+
+        .empty {
+          padding: 55px 20px;
           text-align: center;
-          padding: 50px 20px;
+          border-radius: 16px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
         }
 
-        .empty-icon {
+        .empty > div {
           font-size: 50px;
-          margin-bottom: 10px;
         }
 
-        .empty-state h3 {
-          margin: 5px 0;
-        }
-
-        .empty-state p {
-          color: var(--text-muted);
+        .empty p {
           max-width: 500px;
           margin: 10px auto 20px;
-          line-height: 1.6;
+          color: #64748b;
+          line-height: 1.5;
         }
 
-        /* ================================================
-           HOW IT WORKS
-        ================================================ */
-
-        .how-it-works {
-          padding: 20px;
-          margin-top: 28px;
-          background:
-            linear-gradient(
-              135deg,
-              #faf5ff,
-              #ffffff
-            );
+        .empty button {
+          border: none;
+          border-radius: 10px;
+          padding: 11px 16px;
+          background: #7c3aed;
+          color: white;
+          font-weight: 700;
+          cursor: pointer;
         }
 
-        .how-header {
-          display: flex;
-          align-items: center;
-          gap: 13px;
-          margin-bottom: 20px;
-        }
-
-        .how-icon {
-          width: 50px;
-          height: 50px;
-          display: grid;
-          place-items: center;
-          border-radius: 14px;
-          background: #ede9fe;
-          font-size: 24px;
-        }
-
-        .how-header h2 {
-          margin: 0;
-          font-size: 20px;
-        }
-
-        .how-header p {
-          margin: 4px 0 0;
-          color: var(--text-muted);
-          font-size: 13px;
-        }
-
-        .steps-grid {
-          display: grid;
-          grid-template-columns:
-            repeat(4, 1fr);
-          gap: 15px;
-        }
-
-        .step {
-          display: flex;
-          gap: 10px;
-          padding: 14px;
-          border-radius: 12px;
+        .empty-small {
+          padding: 30px;
+          text-align: center;
+          color: #64748b;
           background: white;
+          border-radius: 12px;
+        }
+
+        .info-card,
+        .safety-notice {
+          display: flex;
+          gap: 15px;
+          margin-top: 30px;
+          padding: 20px;
+          border-radius: 16px;
+          background: #faf5ff;
           border: 1px solid #ede9fe;
         }
 
-        .step-number {
-          width: 30px;
-          height: 30px;
+        .info-icon,
+        .safety-icon {
+          font-size: 28px;
+        }
+
+        .info-card h3,
+        .safety-notice h3 {
+          margin: 0;
+        }
+
+        .info-card p,
+        .safety-notice p {
+          color: #64748b;
+          line-height: 1.6;
+        }
+
+        .info-grid {
+          display: grid;
+          grid-template-columns:
+            repeat(4, 1fr);
+          gap: 10px;
+          margin-top: 15px;
+        }
+
+        .info-grid div {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          padding: 12px;
+          border-radius: 10px;
+          background: white;
+        }
+
+        .info-grid strong {
+          width: 25px;
+          height: 25px;
           display: grid;
           place-items: center;
           border-radius: 50%;
           background: #7c3aed;
           color: white;
+        }
+
+        .info-grid span {
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .call-112 {
+          border: none;
+          border-radius: 10px;
+          padding: 11px 16px;
+          background: #dc2626;
+          color: white;
           font-weight: 800;
-          flex-shrink: 0;
+          cursor: pointer;
         }
 
-        .step strong {
-          font-size: 13px;
-        }
-
-        .step p {
-          margin: 4px 0 0;
-          color: var(--text-muted);
-          font-size: 11px;
-          line-height: 1.5;
-        }
-
-        /* ================================================
-           SAFETY NOTICE
-        ================================================ */
-
-        .safety-notice {
-          display: flex;
-          align-items: flex-start;
-          gap: 15px;
-          padding: 18px;
-          margin-top: 25px;
-          border-left:
-            4px solid
-            var(--primary, #7c3aed);
-        }
-
-        .notice-icon {
-          font-size: 28px;
-          flex-shrink: 0;
-        }
-
-        .safety-notice h3 {
-          margin: 0;
-        }
-
-        .safety-notice p {
-          margin: 6px 0 0;
-          color: var(--text-muted);
-          line-height: 1.6;
-        }
-
-        .safety-notice .emergency-note {
-          color: #991b1b;
-          font-weight: 600;
-        }
-
-        /* ================================================
-           LOADING
-        ================================================ */
-
-        .safeplaces-loading {
-          min-height: 60vh;
+        .nearby-loading {
+          min-height: 65vh;
           display: flex;
           flex-direction: column;
-          justify-content: center;
           align-items: center;
+          justify-content: center;
           text-align: center;
           padding: 20px;
         }
 
-        .location-loader {
+        .nearby-loading-icon {
           width: 75px;
           height: 75px;
           display: grid;
@@ -2790,98 +2543,46 @@ const SafePlaces = () => {
           border-radius: 50%;
           background: #dbeafe;
           font-size: 38px;
-          animation:
-            locationPulse 1.4s infinite;
+          animation: pulse 1.5s infinite;
         }
 
-        .safeplaces-loading h2 {
-          margin: 20px 0 8px;
-        }
-
-        .safeplaces-loading p {
-          color: var(--text-muted);
-          max-width: 550px;
+        .nearby-loading p {
+          max-width: 600px;
+          color: #64748b;
           line-height: 1.6;
         }
 
-        .location-loading-pill {
-          display: flex;
-          align-items: center;
-          gap: 7px;
-          margin-top: 12px;
-          padding: 8px 12px;
+        .loading-pill {
+          padding: 8px 13px;
           border-radius: 20px;
           background: #eff6ff;
-          color: #1d4ed8;
+          color: #2563eb;
           font-size: 12px;
           font-weight: 700;
         }
 
-        .pulse-dot {
+        .loading-pill span {
+          display: inline-block;
           width: 8px;
           height: 8px;
+          margin-right: 6px;
           border-radius: 50%;
           background: #2563eb;
-          animation:
-            dotPulse 1s infinite;
         }
 
-        @keyframes locationPulse {
-
-          0%,
-          100% {
-            transform: scale(1);
-            box-shadow:
-              0 0 0 0
-              rgba(37, 99, 235, 0.25);
-          }
-
+        @keyframes pulse {
           50% {
             transform: scale(1.08);
-            box-shadow:
-              0 0 0 15px
-              rgba(37, 99, 235, 0);
           }
-
         }
-
-        @keyframes dotPulse {
-
-          0%,
-          100% {
-            opacity: 0.4;
-          }
-
-          50% {
-            opacity: 1;
-          }
-
-        }
-
-        /* ================================================
-           TABLET
-        ================================================ */
-
-        @media (max-width: 900px) {
-
-          .steps-grid {
-            grid-template-columns:
-              repeat(2, 1fr);
-          }
-
-        }
-
-        /* ================================================
-           MOBILE
-        ================================================ */
 
         @media (max-width: 768px) {
 
-          .safeplaces-page {
+          .nearby-page {
             padding: 12px;
           }
 
-          .safeplaces-header {
+          .nearby-header {
             flex-direction: column;
           }
 
@@ -2889,7 +2590,7 @@ const SafePlaces = () => {
             width: 100%;
           }
 
-          .current-location-card {
+          .location-card {
             flex-direction: column;
             align-items: stretch;
           }
@@ -2898,92 +2599,58 @@ const SafePlaces = () => {
             width: 100%;
           }
 
-          .places-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .section-header {
-            align-items: flex-start;
-          }
-
-          .verified-banner {
-            align-items: flex-start;
-          }
-
-          .nearest-card {
-            align-items: flex-start;
+          .summary {
             flex-wrap: wrap;
           }
 
-          .nearest-button {
-            width: 100%;
+          .count {
+            margin-left: 0;
+          }
+
+          .info-grid {
+            grid-template-columns: 1fr 1fr;
           }
 
         }
 
         @media (max-width: 480px) {
 
-          .safeplaces-page {
-            padding: 10px;
+          .nearby-header h1 {
+            font-size: 27px;
           }
 
-          .page-title {
-            font-size: 26px;
-          }
-
-          .page-subtitle {
-            font-size: 14px;
-          }
-
-          .filter-row {
+          .filters {
             display: grid;
-            grid-template-columns:
-              1fr 1fr;
+            grid-template-columns: 1fr 1fr;
           }
 
-          .filter-button {
+          .filter {
             width: 100%;
           }
 
-          .place-actions {
-            flex-direction: column;
-          }
-
-          .verified-banner {
-            flex-wrap: wrap;
-          }
-
-          .verified-total {
-            margin-left: 0;
-            width: 100%;
-            box-sizing: border-box;
-          }
-
-          .error-card {
-            flex-direction: column;
-            align-items: stretch;
-          }
-
-          .error-card
-            .secondary-button {
-            width: 100%;
-          }
-
-          .location-content {
-            align-items: flex-start;
-          }
-
-          .coordinates {
-            flex-direction: column;
-            gap: 3px;
-          }
-
-          .steps-grid {
+          .places-grid {
             grid-template-columns: 1fr;
           }
 
-          .safety-notice {
+          .section-heading {
+            align-items: flex-start;
+          }
+
+          .actions {
             flex-direction: column;
+          }
+
+          .info-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .notice {
+            align-items: flex-start;
+            flex-wrap: wrap;
+          }
+
+          .notice button {
+            margin-left: 0;
           }
 
         }

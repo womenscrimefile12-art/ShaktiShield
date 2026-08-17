@@ -1,95 +1,91 @@
+// src/services/emailService.js
+
 import emailjs from "@emailjs/browser";
+
+// =========================================================
+// EMAILJS CONFIGURATION
+// =========================================================
 
 const SERVICE_ID = "service_ynf7gsp";
 const TEMPLATE_ID = "template_nvazo5l";
 const PUBLIC_KEY = "OcYnrCBPC4sbrAFA3";
 
+// =========================================================
+// SEND ONE EMERGENCY EMAIL
+//
+// IMPORTANT:
+// This function sends ONLY ONE email.
+// It does NOT get the user's location.
+// The location is received from SOSButton.
+// =========================================================
+
 export const sendEmergencyAlert = async ({
   user_name,
   emergencyEmail,
   message,
+  lat = "",
+  lng = "",
+  maps_link = "",
 }) => {
   try {
-    // ============================================
-    // CHECK RECIPIENT
-    // ============================================
+    // -----------------------------------------------------
+    // CLEAN EMAIL
+    // -----------------------------------------------------
 
-    if (!emergencyEmail || !emergencyEmail.trim()) {
-      throw new Error("Emergency contact email is missing.");
+    const recipient =
+      typeof emergencyEmail === "string"
+        ? emergencyEmail.trim().toLowerCase()
+        : "";
+
+    if (!recipient) {
+      return {
+        success: false,
+        error: "Emergency contact email is missing.",
+      };
     }
 
-    console.log("🚨 Preparing emergency email...");
-    console.log("📧 Recipient:", emergencyEmail);
+    // -----------------------------------------------------
+    // GOOGLE MAPS LINK
+    // -----------------------------------------------------
 
-    // ============================================
-    // GET LOCATION
-    // ============================================
+    let finalMapsLink = maps_link;
 
-    let lat = "";
-    let lng = "";
-    let maps_link = "Location unavailable";
+    if (
+      !finalMapsLink &&
+      lat !== "" &&
+      lng !== ""
+    ) {
+      finalMapsLink =
+        `https://www.google.com/maps?q=${lat},${lng}`;
+    }
 
-    try {
-      const position = await new Promise((resolve, reject) => {
-        if (!navigator.geolocation) {
-          reject(
-            new Error(
-              "Geolocation is not supported by this browser."
-            )
-          );
-          return;
-        }
+    if (!finalMapsLink) {
+      finalMapsLink = "Location unavailable";
+    }
 
-        navigator.geolocation.getCurrentPosition(
-          resolve,
-          reject,
-          {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0,
-          }
-        );
+    // -----------------------------------------------------
+    // CURRENT TIME
+    // -----------------------------------------------------
+
+    const time =
+      new Date().toLocaleString("en-IN", {
+        dateStyle: "medium",
+        timeStyle: "medium",
       });
 
-      lat = position.coords.latitude;
-      lng = position.coords.longitude;
-
-      maps_link = `https://www.google.com/maps?q=${lat},${lng}`;
-
-      console.log("📍 Location obtained:");
-      console.log("Latitude:", lat);
-      console.log("Longitude:", lng);
-      console.log("Maps:", maps_link);
-    } catch (locationError) {
-      // IMPORTANT:
-      // GPS failure should NOT stop the emergency email.
-      console.warn(
-        "⚠️ Could not get location:",
-        locationError.message
-      );
-
-      maps_link = "Location unavailable";
-    }
-
-    // ============================================
-    // CURRENT TIME
-    // ============================================
-
-    const time = new Date().toLocaleString("en-IN", {
-      dateStyle: "medium",
-      timeStyle: "medium",
-    });
-
-    // ============================================
-    // EMAILJS TEMPLATE PARAMETERS
-    // ============================================
+    // -----------------------------------------------------
+    // EMAILJS TEMPLATE DATA
+    // -----------------------------------------------------
 
     const templateParams = {
-      user_name: user_name || "ShaktiShield User",
+      user_name:
+        user_name ||
+        "ShaktiShield User",
 
       time,
 
-      maps_link,
+      maps_link:
+        finalMapsLink,
 
       lat,
 
@@ -99,78 +95,74 @@ export const sendEmergencyAlert = async ({
         message ||
         "🚨 Emergency! SOS has been activated through ShaktiShield.",
 
-      to_email: emergencyEmail,
+      to_email:
+        recipient,
     };
 
-    console.log("📨 EmailJS parameters:");
-    console.log(templateParams);
+    console.log(
+      "📨 Sending ONE emergency email:",
+      recipient
+    );
 
-    // ============================================
-    // SEND EMAIL
-    // ============================================
+    // -----------------------------------------------------
+    // SEND ONE EMAIL
+    // -----------------------------------------------------
 
-    const emailResponse = await emailjs.send(
-      SERVICE_ID,
-      TEMPLATE_ID,
-      templateParams,
-      {
-        publicKey: PUBLIC_KEY,
-      }
+    const result =
+      await emailjs.send(
+        SERVICE_ID,
+        TEMPLATE_ID,
+        templateParams,
+        {
+          publicKey: PUBLIC_KEY,
+        }
+      );
+
+    console.log(
+      "✅ Email sent successfully:",
+      recipient
     );
 
     console.log(
-      "✅ Emergency email sent successfully!"
+      "EmailJS response:",
+      result.status
     );
-
-    console.log(
-      "EmailJS status:",
-      emailResponse.status
-    );
-
-    console.log(
-      "EmailJS text:",
-      emailResponse.text
-    );
-
-    // ============================================
-    // SUCCESS
-    // ============================================
 
     return {
       success: true,
-      latitude: lat,
-      longitude: lng,
-      maps_link,
+
+      email:
+        recipient,
+
+      latitude:
+        lat,
+
+      longitude:
+        lng,
+
+      maps_link:
+        finalMapsLink,
+
       time,
     };
+
   } catch (error) {
-    // ============================================
-    // EMAILJS ERROR
-    // ============================================
 
     console.error(
-      "❌ Emergency email failed!"
-    );
-
-    console.error("Error:", error);
-
-    console.error(
-      "Error message:",
-      error?.message
-    );
-
-    console.error(
-      "Error text:",
-      error?.text
+      "❌ EmailJS failed:",
+      error
     );
 
     return {
       success: false,
 
+      email:
+        emergencyEmail,
+
       error:
         error?.text ||
         error?.message ||
-        "Failed to send emergency alert.",
+        "Failed to send emergency email.",
     };
   }
 };

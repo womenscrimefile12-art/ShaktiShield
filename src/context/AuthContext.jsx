@@ -1,3 +1,5 @@
+// src/context/AuthContext.jsx
+
 import {
   createContext,
   useContext,
@@ -10,95 +12,174 @@ import {
   loginUser,
   logoutUser,
   listenToAuth,
+  getUserData,
 } from "../services/firebaseAuth";
 
-const AuthContext = createContext(null);
+import { auth } from "../services/firebase";
 
+const AuthContext =
+  createContext(null);
 
-export const AuthProvider = ({ children }) => {
+// =========================================================
+// AUTH PROVIDER
+// =========================================================
 
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+export const AuthProvider = ({
+  children,
+}) => {
 
+  const [user, setUser] =
+    useState(null);
 
-  // ==========================================
-  // FIREBASE AUTH LISTENER
-  // ==========================================
+  const [loading, setLoading] =
+    useState(true);
+
+  // =======================================================
+  // FIREBASE AUTH STATE
+  // =======================================================
 
   useEffect(() => {
 
-    const unsubscribe = listenToAuth(
-      async (firebaseUser) => {
+    let mounted = true;
 
-        if (!firebaseUser) {
-          setUser(null);
-          setLoading(false);
-          return;
+    const unsubscribe =
+      listenToAuth(
+        async (firebaseUser) => {
+
+          if (!mounted) {
+            return;
+          }
+
+          // ------------------------------------------------
+          // USER IS LOGGED OUT
+          // ------------------------------------------------
+
+          if (!firebaseUser) {
+
+            setUser(null);
+            setLoading(false);
+
+            return;
+          }
+
+          // ------------------------------------------------
+          // USER IS LOGGED IN
+          //
+          // Do NOT login again.
+          // Just retrieve Firestore profile.
+          // ------------------------------------------------
+
+          try {
+
+            const userData =
+              await getUserData(
+                firebaseUser
+              );
+
+            if (!mounted) {
+              return;
+            }
+
+            setUser(userData);
+
+          } catch (error) {
+
+            console.error(
+              "Could not restore Firebase user:",
+              error
+            );
+
+            if (!mounted) {
+              return;
+            }
+
+            // ------------------------------------------------
+            // Even if Firestore fails, Firebase Auth is valid.
+            // Keep the authenticated user available.
+            // ------------------------------------------------
+
+            setUser({
+              uid:
+                firebaseUser.uid,
+
+              name:
+                firebaseUser.displayName ||
+                "",
+
+              email:
+                firebaseUser.email ||
+                "",
+
+              phone: "",
+
+              role: "user",
+            });
+
+          } finally {
+
+            if (mounted) {
+              setLoading(false);
+            }
+
+          }
         }
+      );
 
-        try {
+    // ------------------------------------------------------
+    // CLEANUP
+    // ------------------------------------------------------
 
-          const loggedUser = await loginUser(
-            firebaseUser.email,
-            ""
-          );
+    return () => {
 
-          setUser(loggedUser);
+      mounted = false;
 
-        } catch {
+      unsubscribe();
 
-          setUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            role: "user",
-          });
-
-        }
-
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
+    };
 
   }, []);
 
-
-  // ==========================================
+  // =======================================================
   // LOGIN
-  // ==========================================
+  // =======================================================
 
-  const login = async (email, password) => {
-
-    const userData = await loginUser(
-      email,
-      password
-    );
-
-    setUser(userData);
-
-    return userData;
-  };
-
-
-  // ==========================================
-  // REGISTER
-  // ==========================================
-
-  const register = async (formData) => {
+  const login = async (
+    email,
+    password
+  ) => {
 
     const userData =
-      await registerUser(formData);
+      await loginUser(
+        email,
+        password
+      );
 
     setUser(userData);
 
     return userData;
   };
 
+  // =======================================================
+  // REGISTER
+  // =======================================================
 
-  // ==========================================
+  const register = async (
+    formData
+  ) => {
+
+    const userData =
+      await registerUser(
+        formData
+      );
+
+    setUser(userData);
+
+    return userData;
+  };
+
+  // =======================================================
   // LOGOUT
-  // ==========================================
+  // =======================================================
 
   const logout = async () => {
 
@@ -107,19 +188,30 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  // =======================================================
+  // ADMIN
+  // =======================================================
 
   const isAdmin =
     user?.role === "admin";
 
+  // =======================================================
+  // CONTEXT
+  // =======================================================
 
   return (
     <AuthContext.Provider
       value={{
         user,
+
         login,
+
         register,
+
         logout,
+
         loading,
+
         isAdmin,
       }}
     >
@@ -128,6 +220,9 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
+// =========================================================
+// USE AUTH
+// =========================================================
 
 export const useAuth = () => {
 
@@ -135,9 +230,11 @@ export const useAuth = () => {
     useContext(AuthContext);
 
   if (!context) {
+
     throw new Error(
       "useAuth must be used within AuthProvider"
     );
+
   }
 
   return context;

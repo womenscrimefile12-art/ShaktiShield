@@ -105,37 +105,62 @@ const SOS = () => {
     (alert) => alert.status === "active"
   );
 
+  const resolvedAlerts = alerts.filter(
+    (alert) => alert.status === "resolved"
+  );
+
+  const cancelledAlerts = alerts.filter(
+    (alert) => alert.status === "cancelled"
+  );
+
   return (
     <section className="sos-page">
-      {/* Header */}
-      <header className="page-header">
-        <span className="section-label">
+
+      {/* =====================================================
+          PAGE HEADER
+      ===================================================== */}
+
+      <header className="page-header sos-page-header">
+
+        <div className="sos-header-badge">
+          <span className="status-dot" />
           SHAKTISHIELD • EMERGENCY RESPONSE
-        </span>
+        </div>
 
         <h1 className="page-title">
           SOS Emergency
         </h1>
 
         <p className="page-description">
-          Quickly alert your emergency contacts when you
-          are in danger or need immediate assistance.
+          One tap can alert your trusted emergency contacts
+          when you need immediate help.
         </p>
+
       </header>
 
-      {/* Success Message */}
+
+      {/* =====================================================
+          NOTIFICATIONS
+      ===================================================== */}
+
       {message && (
         <div
-          className="alert alert-success sos-alert-message"
+          className="sos-notification success"
           role="status"
         >
-          <span className="message-icon">✓</span>
-          <span>{message}</span>
+          <div className="notification-icon">
+            ✓
+          </div>
+
+          <div className="notification-content">
+            <strong>Alert Update</strong>
+            <span>{message}</span>
+          </div>
 
           <button
             type="button"
-            className="alert-close"
             onClick={() => setMessage("")}
+            className="notification-close"
             aria-label="Close message"
           >
             ×
@@ -143,19 +168,24 @@ const SOS = () => {
         </div>
       )}
 
-      {/* Error Message */}
       {error && (
         <div
-          className="alert alert-error sos-alert-message"
+          className="sos-notification error"
           role="alert"
         >
-          <span className="message-icon">⚠️</span>
-          <span>{error}</span>
+          <div className="notification-icon">
+            !
+          </div>
+
+          <div className="notification-content">
+            <strong>Something went wrong</strong>
+            <span>{error}</span>
+          </div>
 
           <button
             type="button"
-            className="alert-close"
             onClick={() => setError("")}
+            className="notification-close"
             aria-label="Close error"
           >
             ×
@@ -163,76 +193,232 @@ const SOS = () => {
         </div>
       )}
 
-      {/* Emergency SOS Card */}
-      <div className="card sos-main-card">
-        <div className="sos-icon-wrapper">
-          <span className="sos-shield-icon">
-            🛡️
-          </span>
-        </div>
 
-        <h2 className="sos-main-title">
-          Are You in Danger?
-        </h2>
+      {/* =====================================================
+          MAIN SOS HERO
+      ===================================================== */}
 
-        <p className="sos-main-description">
-          Press the SOS button to send an emergency
-          alert to your registered emergency contacts.
-          Your location may be shared according to your
-          configured emergency settings.
-        </p>
+      <div className="sos-hero-card">
 
-        <div className="sos-button-container">
-          <SOSButton
-            onTriggered={handleTriggered}
-          />
-        </div>
+        <div className="sos-hero-glow glow-one" />
+        <div className="sos-hero-glow glow-two" />
 
-        <div className="sos-warning">
-          <span>⚠️</span>
+        <div className="sos-hero-content">
 
-          <p>
-            Only use SOS during a genuine emergency.
-            Make sure your emergency contacts are
-            updated and your location permissions are
-            enabled when required.
+          <div className="sos-live-status">
+            <span className="live-dot" />
+            EMERGENCY SYSTEM READY
+          </div>
+
+          <div className="sos-shield-container">
+
+            <div className="sos-outer-ring">
+              <div className="sos-middle-ring">
+                <div className="sos-shield">
+                  🛡️
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <h2 className="sos-hero-title">
+            Are You in Danger?
+          </h2>
+
+          <p className="sos-hero-text">
+            Press the SOS button to immediately trigger
+            your emergency response and notify your
+            registered contacts.
           </p>
+
+          <div className="sos-button-wrapper">
+            <SOSButton
+              onTriggered={handleTriggered}
+            />
+          </div>
+
+          <div className="sos-security-note">
+            <span>🔒</span>
+            <span>
+              Your emergency information is handled
+              according to your configured settings.
+            </span>
+          </div>
+
         </div>
+
       </div>
 
-      {/* Active Alert Status */}
-      {activeAlerts.length > 0 && (
-        <div className="active-alert-card">
-          <div className="active-alert-icon">
+
+      {/* =====================================================
+          QUICK EMERGENCY ACTIONS
+      ===================================================== */}
+
+      <div className="sos-quick-actions">
+
+        <div className="sos-quick-card">
+          <div className="quick-card-icon red">
             🚨
           </div>
 
           <div>
-            <h3>Active Emergency Alert</h3>
-
-            <p>
-              You currently have{" "}
-              <strong>
-                {activeAlerts.length}
-              </strong>{" "}
-              active emergency{" "}
-              {activeAlerts.length === 1
-                ? "alert"
-                : "alerts"}
-              .
-            </p>
+            <strong>Emergency</strong>
+            <span>Use SOS immediately</span>
           </div>
+        </div>
+
+        <div className="sos-quick-card">
+          <div className="quick-card-icon purple">
+            📍
+          </div>
+
+          <div>
+            <strong>Location</strong>
+            <span>Share your location</span>
+          </div>
+        </div>
+
+        <div className="sos-quick-card">
+          <div className="quick-card-icon green">
+            👥
+          </div>
+
+          <div>
+            <strong>Contacts</strong>
+            <span>Trusted contacts notified</span>
+          </div>
+        </div>
+
+        <div className="sos-quick-card">
+          <div className="quick-card-icon blue">
+            🛡️
+          </div>
+
+          <div>
+            <strong>Protection</strong>
+            <span>Stay calm and move safe</span>
+          </div>
+        </div>
+
+      </div>
+
+
+      {/* =====================================================
+          ACTIVE ALERT
+      ===================================================== */}
+
+      {activeAlerts.length > 0 && (
+        <div className="active-alert-card enhanced-active-alert">
+
+          <div className="active-alert-left">
+
+            <div className="active-alert-icon pulse-alert">
+              🚨
+            </div>
+
+            <div>
+              <div className="active-alert-label">
+                LIVE EMERGENCY
+              </div>
+
+              <h3>
+                Active Emergency Alert
+              </h3>
+
+              <p>
+                You currently have{" "}
+                <strong>
+                  {activeAlerts.length}
+                </strong>{" "}
+                active emergency{" "}
+                {activeAlerts.length === 1
+                  ? "alert"
+                  : "alerts"}.
+              </p>
+            </div>
+
+          </div>
+
+          <div className="active-alert-indicator">
+            <span />
+            Active
+          </div>
+
         </div>
       )}
 
-      {/* Alert History */}
-      <div className="alert-history-section">
-        <div className="section-heading-row">
+
+      {/* =====================================================
+          STATISTICS
+      ===================================================== */}
+
+      <div className="sos-stat-grid">
+
+        <div className="sos-stat-card">
+          <span className="stat-icon">🚨</span>
+
           <div>
-            <h2>Alert History</h2>
+            <strong>{alerts.length}</strong>
+            <span>Total Alerts</span>
+          </div>
+        </div>
+
+        <div className="sos-stat-card">
+          <span className="stat-icon active">
+            ⚡
+          </span>
+
+          <div>
+            <strong>{activeAlerts.length}</strong>
+            <span>Active</span>
+          </div>
+        </div>
+
+        <div className="sos-stat-card">
+          <span className="stat-icon resolved">
+            ✓
+          </span>
+
+          <div>
+            <strong>{resolvedAlerts.length}</strong>
+            <span>Resolved</span>
+          </div>
+        </div>
+
+        <div className="sos-stat-card">
+          <span className="stat-icon cancelled">
+            ×
+          </span>
+
+          <div>
+            <strong>{cancelledAlerts.length}</strong>
+            <span>Cancelled</span>
+          </div>
+        </div>
+
+      </div>
+
+
+      {/* =====================================================
+          ALERT HISTORY
+      ===================================================== */}
+
+      <div className="alert-history-section">
+
+        <div className="section-heading-row sos-history-heading">
+
+          <div>
+            <span className="section-label">
+              ACTIVITY
+            </span>
+
+            <h2>
+              Emergency Alert History
+            </h2>
 
             <p>
-              View your previous emergency alerts and
+              Review your previous SOS alerts and
               their current status.
             </p>
           </div>
@@ -243,55 +429,113 @@ const SOS = () => {
             onClick={fetchAlerts}
             disabled={loading}
           >
-            {loading ? "Refreshing..." : "↻ Refresh"}
+            <span className={loading ? "refresh-spin" : ""}>
+              ↻
+            </span>
+
+            {loading
+              ? "Refreshing..."
+              : "Refresh"}
           </button>
+
         </div>
 
-        {/* Loading */}
+
+        {/* =================================================
+            LOADING STATE
+        ================================================= */}
+
         {loading && alerts.length === 0 ? (
-          <div className="grid">
+
+          <div className="sos-loading-grid">
+
             {[1, 2, 3].map((item) => (
               <div
-                className="card alert-history-card"
+                className="sos-history-skeleton"
                 key={item}
               >
-                <div className="skeleton skeleton-small" />
-                <div className="skeleton skeleton-medium" />
-                <div className="skeleton skeleton-line" />
+                <div className="skeleton skeleton-circle" />
+
+                <div className="skeleton-content">
+                  <div className="skeleton skeleton-small" />
+                  <div className="skeleton skeleton-medium" />
+                  <div className="skeleton skeleton-line" />
+                </div>
               </div>
             ))}
+
           </div>
+
         ) : alerts.length === 0 ? (
-          /* Empty State */
-          <div className="card empty-alert-state">
-            <div className="empty-alert-icon">
+
+          /* =================================================
+             EMPTY STATE
+          ================================================= */
+
+          <div className="empty-alert-state enhanced-empty-state">
+
+            <div className="empty-shield">
               🛡️
             </div>
 
-            <h3>No Emergency Alerts</h3>
+            <span className="empty-label">
+              ALL CLEAR
+            </span>
+
+            <h3>
+              No Emergency Alerts
+            </h3>
 
             <p>
               You haven't triggered any SOS alerts yet.
-              Your emergency alert history will appear
-              here.
+              Your emergency activity will appear here
+              when an alert is created.
             </p>
+
+            <div className="empty-security">
+              <span>✓</span>
+              Your emergency system is ready
+            </div>
+
           </div>
+
         ) : (
-          /* Alert List */
+
+          /* =================================================
+             ALERT LIST
+          ================================================= */
+
           <div className="grid alert-history-grid">
+
             {alerts.map((alert) => (
+
               <article
                 key={alert._id}
-                className="card alert-history-card"
+                className={`card alert-history-card enhanced-history-card ${
+                  alert.status === "active"
+                    ? "history-active"
+                    : ""
+                }`}
               >
+
+                {/* CARD TOP */}
+
                 <div className="alert-history-header">
+
                   <div className="alert-type">
-                    <span className="alert-history-icon">
+
+                    <div
+                      className={`history-icon ${
+                        alert.status
+                      }`}
+                    >
                       🚨
-                    </span>
+                    </div>
 
                     <div>
-                      <h3>Emergency SOS</h3>
+                      <h3>
+                        Emergency SOS
+                      </h3>
 
                       <span
                         className={getStatusClass(
@@ -301,22 +545,59 @@ const SOS = () => {
                         {alert.status || "unknown"}
                       </span>
                     </div>
+
                   </div>
 
-                  <span className="alert-date">
+                  <div className="alert-date">
+                    <span>TRIGGERED</span>
                     {formatDate(alert.createdAt)}
-                  </span>
+                  </div>
+
                 </div>
 
+
+                {/* DIVIDER */}
+
+                <div className="history-divider" />
+
+
+                {/* MESSAGE */}
+
                 <div className="alert-history-content">
+
+                  <div className="history-message-icon">
+                    💬
+                  </div>
+
                   <p>
                     {alert.message ||
                       "Emergency alert triggered."}
                   </p>
+
                 </div>
 
+
+                {/* LOCATION INFO */}
+
+                <div className="history-meta">
+
+                  <span>
+                    📍 Emergency response
+                  </span>
+
+                  <span>
+                    🛡️ ShaktiShield
+                  </span>
+
+                </div>
+
+
+                {/* ACTION */}
+
                 {alert.status === "active" && (
+
                   <div className="alert-history-actions">
+
                     <button
                       type="button"
                       className="btn btn-danger"
@@ -329,15 +610,50 @@ const SOS = () => {
                     >
                       {cancellingId === alert._id
                         ? "Cancelling..."
-                        : "Cancel Alert"}
+                        : "Cancel Emergency Alert"}
                     </button>
+
                   </div>
+
                 )}
+
               </article>
+
             ))}
+
           </div>
+
         )}
+
       </div>
+
+
+      {/* =====================================================
+          SAFETY REMINDER
+      ===================================================== */}
+
+      <div className="sos-safety-footer">
+
+        <div className="safety-footer-icon">
+          💡
+        </div>
+
+        <div>
+          <strong>
+            Emergency Safety Reminder
+          </strong>
+
+          <p>
+            Use SOS only when you genuinely need
+            emergency assistance. Keep your trusted
+            contacts updated and allow location
+            permissions when your emergency settings
+            require them.
+          </p>
+        </div>
+
+      </div>
+
     </section>
   );
 };

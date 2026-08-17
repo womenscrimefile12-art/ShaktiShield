@@ -6,9 +6,20 @@
  * - User/contact data is stored in localStorage.
  * - SOS alerts are stored locally.
  * - SOS notifications are sent through EmailJS.
+ *
+ * SOS BEHAVIOR:
+ * - One SOS click = one SOS operation.
+ * - GPS is supplied by SOSButton.
+ * - GPS is NOT requested again here.
+ * - Every UNIQUE emergency contact email receives ONE email.
+ * - Duplicate email addresses receive only ONE email.
  */
 
 import { sendEmergencyAlert } from "./emailService";
+
+/* =========================================================
+   STORAGE
+========================================================= */
 
 const STORAGE = {
   users: "shaktishield_users",
@@ -19,31 +30,54 @@ const STORAGE = {
   alerts: "shaktishield_alerts",
 };
 
+/* =========================================================
+   HELPERS
+========================================================= */
+
 const uid = (prefix = "id") =>
-  `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  `${prefix}-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
 
 const read = (key, fallback = []) => {
   try {
-    const value = localStorage.getItem(key);
+    const value =
+      localStorage.getItem(key);
 
     if (!value) {
       return fallback;
     }
 
     return JSON.parse(value) ?? fallback;
+
   } catch (error) {
-    console.error(`Error reading localStorage key "${key}":`, error);
+
+    console.error(
+      `Error reading localStorage key "${key}":`,
+      error
+    );
+
     return fallback;
   }
 };
 
 const write = (key, value) => {
-  localStorage.setItem(key, JSON.stringify(value));
+  localStorage.setItem(
+    key,
+    JSON.stringify(value)
+  );
 };
 
-const response = (data) => Promise.resolve({ data });
+const response = (data) =>
+  Promise.resolve({
+    data,
+  });
 
-const currentUser = () => read(STORAGE.user, null);
+const currentUser = () =>
+  read(
+    STORAGE.user,
+    null
+  );
 
 /* =========================================================
    DEFAULT SAFETY TIPS
@@ -58,6 +92,7 @@ const DEFAULT_TIPS = [
     content:
       "If a situation feels unsafe or uncomfortable, trust your instincts. Move to a safe and public location and contact someone you trust.",
   },
+
   {
     _id: "tip-2",
     title: "Share Your Live Location",
@@ -66,6 +101,7 @@ const DEFAULT_TIPS = [
     content:
       "When traveling alone, especially at night, share your live location with a trusted family member or friend. This can help others know where you are.",
   },
+
   {
     _id: "tip-3",
     title: "Stay in Well-Lit Areas",
@@ -74,6 +110,7 @@ const DEFAULT_TIPS = [
     content:
       "Prefer well-lit and populated roads. Avoid isolated shortcuts and unfamiliar areas when traveling alone.",
   },
+
   {
     _id: "tip-4",
     title: "Keep Emergency Numbers Ready",
@@ -82,6 +119,7 @@ const DEFAULT_TIPS = [
     content:
       "Keep important emergency numbers saved on your phone. In India, 112 is the unified emergency number.",
   },
+
   {
     _id: "tip-5",
     title: "Keep Your Phone Charged",
@@ -90,6 +128,7 @@ const DEFAULT_TIPS = [
     content:
       "Make sure your phone has enough battery before leaving home. Carry a power bank when traveling for long periods.",
   },
+
   {
     _id: "tip-6",
     title: "Protect Personal Information",
@@ -114,6 +153,7 @@ const SELF_DEFENSE = [
     content:
       "Maintain a balanced posture, keep your surroundings in view, identify exits and avoid distractions. The goal is awareness and creating an opportunity to move to safety.",
   },
+
   {
     _id: "sd-2",
     title: "Palm Heel Strike",
@@ -123,6 +163,7 @@ const SELF_DEFENSE = [
     content:
       "A palm heel movement can help create distance when you cannot safely disengage. Protect your fingers, maintain balance and use any opening to escape toward a safe place.",
   },
+
   {
     _id: "sd-3",
     title: "Knee Strike",
@@ -132,6 +173,7 @@ const SELF_DEFENSE = [
     content:
       "At very close range, a knee movement may help create space when escape is not immediately possible. Once there is an opening, disengage and seek help.",
   },
+
   {
     _id: "sd-4",
     title: "Breaking a Wrist Grab",
@@ -141,6 +183,7 @@ const SELF_DEFENSE = [
     content:
       "Focus on creating space and moving toward the weaker part of a grip. Once free, move away immediately instead of continuing the confrontation.",
   },
+
   {
     _id: "sd-5",
     title: "Verbal De-escalation",
@@ -150,6 +193,7 @@ const SELF_DEFENSE = [
     content:
       "Use a clear voice, set boundaries and maintain distance. If the situation becomes threatening, attract attention and move toward a safer location.",
   },
+
   {
     _id: "sd-6",
     title: "Creating an Escape Opportunity",
@@ -178,11 +222,13 @@ const SAFE_PLACES = [
       coordinates: [77.2167, 28.6315],
     },
   },
+
   {
     _id: "sp-2",
     name: "Lady Hardinge Medical College & Hospital",
     type: "hospital",
-    address: "Shaheed Bhagat Singh Marg, New Delhi",
+    address:
+      "Shaheed Bhagat Singh Marg, New Delhi",
     phone: "01123445911",
     hours: "Emergency services available",
     location: {
@@ -190,6 +236,7 @@ const SAFE_PLACES = [
       coordinates: [77.2096, 28.6391],
     },
   },
+
   {
     _id: "sp-3",
     name: "Safdarjung Hospital",
@@ -202,6 +249,7 @@ const SAFE_PLACES = [
       coordinates: [77.2066, 28.5672],
     },
   },
+
   {
     _id: "sp-4",
     name: "India Gate Police Assistance Point",
@@ -214,6 +262,7 @@ const SAFE_PLACES = [
       coordinates: [77.2295, 28.6129],
     },
   },
+
   {
     _id: "sp-5",
     name: "Community Support Centre",
@@ -226,6 +275,7 @@ const SAFE_PLACES = [
       coordinates: [77.209, 28.625],
     },
   },
+
   {
     _id: "sp-6",
     name: "Safe Shelter Support Point",
@@ -245,81 +295,157 @@ const SAFE_PLACES = [
 ========================================================= */
 
 export const authAPI = {
+
   register: async (data) => {
-    const users = read(STORAGE.users);
+
+    const users =
+      read(STORAGE.users);
 
     if (
       users.some(
         (u) =>
           u.email &&
           data.email &&
-          u.email.toLowerCase() === data.email.toLowerCase()
+          u.email.toLowerCase() ===
+            data.email.toLowerCase()
       )
     ) {
-      throw new Error("An account with this email already exists.");
+
+      throw new Error(
+        "An account with this email already exists."
+      );
     }
 
     const user = {
-      _id: uid("user"),
-      name: data.name,
-      email: data.email,
-      phone: data.phone || "",
-      role: "user",
+
+      _id:
+        uid("user"),
+
+      name:
+        data.name,
+
+      email:
+        data.email,
+
+      phone:
+        data.phone || "",
+
+      role:
+        "user",
     };
 
     users.push({
+
       ...user,
-      password: data.password,
+
+      password:
+        data.password,
     });
 
-    write(STORAGE.users, users);
-    write(STORAGE.user, user);
+    write(
+      STORAGE.users,
+      users
+    );
 
-    localStorage.setItem(STORAGE.token, `local-${user._id}`);
+    write(
+      STORAGE.user,
+      user
+    );
+
+    localStorage.setItem(
+      STORAGE.token,
+      `local-${user._id}`
+    );
 
     return response(user);
   },
 
-  login: async ({ email, password }) => {
-    const users = read(STORAGE.users);
+  login: async ({
+    email,
+    password,
+  }) => {
 
-    let user = users.find(
-      (u) =>
-        u.email &&
-        email &&
-        u.email.toLowerCase() === email.toLowerCase() &&
-        u.password === password
-    );
+    const users =
+      read(STORAGE.users);
 
-    if (!user && email && password) {
+    let user =
+      users.find(
+        (u) =>
+          u.email &&
+          email &&
+          u.email.toLowerCase() ===
+            email.toLowerCase() &&
+          u.password ===
+            password
+      );
+
+    if (
+      !user &&
+      email &&
+      password
+    ) {
+
       user = {
-        _id: uid("user"),
-        name: email.split("@")[0] || "ShaktiShield User",
+
+        _id:
+          uid("user"),
+
+        name:
+          email.split("@")[0] ||
+          "ShaktiShield User",
+
         email,
-        phone: "",
-        role: "user",
+
+        phone:
+          "",
+
+        role:
+          "user",
+
         password,
       };
 
       users.push(user);
-      write(STORAGE.users, users);
+
+      write(
+        STORAGE.users,
+        users
+      );
     }
 
     if (!user) {
-      throw new Error("Invalid email or password.");
+
+      throw new Error(
+        "Invalid email or password."
+      );
     }
 
-    const safeUser = { ...user };
+    const safeUser =
+      {
+        ...user,
+      };
+
     delete safeUser.password;
 
-    write(STORAGE.user, safeUser);
+    write(
+      STORAGE.user,
+      safeUser
+    );
 
-    localStorage.setItem(STORAGE.token, `local-${user._id}`);
+    localStorage.setItem(
+      STORAGE.token,
+      `local-${user._id}`
+    );
 
-    return response(safeUser);
+    return response(
+      safeUser
+    );
   },
 
-  getMe: async () => response(currentUser()),
+  getMe: async () =>
+    response(
+      currentUser()
+    ),
 };
 
 /* =========================================================
@@ -327,42 +453,65 @@ export const authAPI = {
 ========================================================= */
 
 export const userAPI = {
+
   getProfile: async () =>
     response(
       currentUser() || {
-        name: "Guest User",
-        email: "",
-        phone: "",
+        name:
+          "Guest User",
+
+        email:
+          "",
+
+        phone:
+          "",
       }
     ),
 
-  updateProfile: async (data) => {
-    const user = {
-      ...(currentUser() || {}),
-      ...data,
-    };
+  updateProfile:
+    async (data) => {
 
-    write(STORAGE.user, user);
+      const user = {
 
-    const users = read(STORAGE.users).map((u) =>
-      u._id === user._id
-        ? {
-            ...u,
-            ...data,
-          }
-        : u
-    );
+        ...(currentUser() || {}),
 
-    write(STORAGE.users, users);
+        ...data,
+      };
 
-    return response(user);
-  },
+      write(
+        STORAGE.user,
+        user
+      );
 
-  updateLocation: async (data) =>
-    response({
-      ...currentUser(),
-      location: data,
-    }),
+      const users =
+        read(
+          STORAGE.users
+        ).map(
+          (u) =>
+            u._id === user._id
+              ? {
+                  ...u,
+                  ...data,
+                }
+              : u
+        );
+
+      write(
+        STORAGE.users,
+        users
+      );
+
+      return response(
+        user
+      );
+    },
+
+  updateLocation:
+    async (data) =>
+      response({
+        ...currentUser(),
+        location: data,
+      }),
 };
 
 /* =========================================================
@@ -370,56 +519,110 @@ export const userAPI = {
 ========================================================= */
 
 export const contactAPI = {
+
   getAll: async () => {
-    const contacts = read(STORAGE.contacts);
 
-    console.log("📱 Emergency contacts:", contacts);
+    const contacts =
+      read(
+        STORAGE.contacts
+      );
 
-    return response(contacts);
+    console.log(
+      "📱 Emergency contacts:",
+      contacts
+    );
+
+    return response(
+      contacts
+    );
   },
 
   add: async (data) => {
-    const contacts = read(STORAGE.contacts);
+
+    const contacts =
+      read(
+        STORAGE.contacts
+      );
 
     const contact = {
-      _id: uid("contact"),
+
+      _id:
+        uid("contact"),
+
       ...data,
-      createdAt: new Date().toISOString(),
+
+      createdAt:
+        new Date().toISOString(),
     };
 
-    contacts.push(contact);
-
-    write(STORAGE.contacts, contacts);
-
-    console.log("✅ Emergency contact added:", contact);
-
-    return response(contact);
-  },
-
-  update: async (id, data) => {
-    const contacts = read(STORAGE.contacts).map((c) =>
-      c._id === id
-        ? {
-            ...c,
-            ...data,
-          }
-        : c
+    contacts.push(
+      contact
     );
 
-    write(STORAGE.contacts, contacts);
+    write(
+      STORAGE.contacts,
+      contacts
+    );
 
-    return response(contacts.find((c) => c._id === id));
+    console.log(
+      "✅ Emergency contact added:",
+      contact
+    );
+
+    return response(
+      contact
+    );
+  },
+
+  update: async (
+    id,
+    data
+  ) => {
+
+    const contacts =
+      read(
+        STORAGE.contacts
+      ).map(
+        (c) =>
+          c._id === id
+            ? {
+                ...c,
+                ...data,
+              }
+            : c
+      );
+
+    write(
+      STORAGE.contacts,
+      contacts
+    );
+
+    return response(
+      contacts.find(
+        (c) =>
+          c._id === id
+      )
+    );
   },
 
   delete: async (id) => {
-    const contacts = read(STORAGE.contacts).filter(
-      (c) => c._id !== id
+
+    const contacts =
+      read(
+        STORAGE.contacts
+      ).filter(
+        (c) =>
+          c._id !== id
+      );
+
+    write(
+      STORAGE.contacts,
+      contacts
     );
 
-    write(STORAGE.contacts, contacts);
-
     return response({
-      success: true,
+      success:
+        true,
     });
   },
 };
@@ -429,218 +632,343 @@ export const contactAPI = {
 ========================================================= */
 
 export const sosAPI = {
-  trigger: async (data = {}) => {
+
+  /* =======================================================
+     SAVE SOS
+
+     IMPORTANT:
+     - Does NOT request GPS.
+     - Does NOT send email.
+     - Only creates and stores the SOS.
+     
+     SOSButton.jsx handles:
+     - GPS
+     - unique contacts
+     - email sending
+  ======================================================= */
+
+  trigger: async (
+    data = {}
+  ) => {
+
     try {
-      console.log("=================================");
-      console.log("🚨 SHAKTISHIELD SOS TRIGGERED");
-      console.log("=================================");
 
-      const user = currentUser();
-
-      const contacts = read(STORAGE.contacts);
-
-      console.log("👤 Current user:", user);
-      console.log("📱 Emergency contacts:", contacts);
-
-      /* -----------------------------------------------------
-         1. CREATE AND SAVE SOS ALERT
-      ----------------------------------------------------- */
-
-      const alerts = read(STORAGE.alerts);
-
-      const alert = {
-        _id: uid("sos"),
-        status: "active",
-        createdAt: new Date().toISOString(),
-        message:
-          data.message ||
-          "Emergency SOS triggered from ShaktiShield.",
-        ...data,
-      };
-
-      alerts.unshift(alert);
-
-      write(STORAGE.alerts, alerts);
-
-      console.log("💾 SOS saved locally:", alert);
-
-      /* -----------------------------------------------------
-         2. CHECK EMERGENCY CONTACTS
-      ----------------------------------------------------- */
-
-      if (!contacts || contacts.length === 0) {
-        console.warn("⚠️ NO EMERGENCY CONTACTS FOUND");
-
-        return response({
-          ...alert,
-          emailSent: false,
-          emailsSent: 0,
-          emailMessage: "No emergency contacts found.",
-        });
-      }
-
-      /* -----------------------------------------------------
-         3. FIND CONTACTS WITH EMAIL
-      ----------------------------------------------------- */
-
-      const emailContacts = contacts.filter(
-        (contact) =>
-          contact.email &&
-          typeof contact.email === "string" &&
-          contact.email.trim() !== ""
+      console.log(
+        "================================="
       );
 
-      console.log("📧 Contacts with email:", emailContacts);
+      console.log(
+        "🚨 SAVING SHAKTISHIELD SOS"
+      );
 
-      if (emailContacts.length === 0) {
-        console.warn(
-          "⚠️ NO EMERGENCY CONTACT HAS AN EMAIL ADDRESS"
+      console.log(
+        "================================="
+      );
+
+      const user =
+        currentUser();
+
+      /* ---------------------------------------------------
+         EXISTING ALERTS
+      --------------------------------------------------- */
+
+      const alerts =
+        read(
+          STORAGE.alerts
         );
 
-        return response({
-          ...alert,
-          emailSent: false,
-          emailsSent: 0,
-          emailMessage:
-            "No emergency contact email address found.",
-        });
-      }
+      /* ---------------------------------------------------
+         CREATE ALERT
+      --------------------------------------------------- */
 
-      /* -----------------------------------------------------
-         4. SEND EMAIL TO ALL EMERGENCY CONTACTS
-      ----------------------------------------------------- */
+      const alert = {
 
-      const results = [];
+        _id:
+          uid("sos"),
 
-      for (const contact of emailContacts) {
-        try {
-          console.log(
-            `📧 Sending emergency alert to: ${contact.email}`
-          );
+        status:
+          "active",
 
-          const result = await sendEmergencyAlert({
-            user_name:
-              user?.name ||
-              data.user_name ||
-              "ShaktiShield User",
+        createdAt:
+          new Date().toISOString(),
 
-            emergencyEmail: contact.email,
+        message:
+          data.message ||
+          "🚨 Emergency SOS triggered from ShaktiShield.",
 
-            message:
-              data.message ||
-              "🚨 Emergency! SOS has been activated through ShaktiShield.",
-          });
+        userId:
+          user?._id ||
+          null,
 
-          results.push({
-            contactId: contact._id,
-            contactName: contact.name || "Emergency Contact",
-            contactEmail: contact.email,
-            success: result.success,
-            error: result.error || null,
-            latitude: result.latitude || "",
-            longitude: result.longitude || "",
-            maps_link: result.maps_link || "",
-          });
+        userName:
+          user?.name ||
+          data.user_name ||
+          "ShaktiShield User",
 
-          if (result.success) {
-            console.log(
-              `✅ Emergency alert sent successfully to ${contact.email}`
-            );
-          } else {
-            console.error(
-              `❌ Failed to send alert to ${contact.email}:`,
-              result.error
-            );
-          }
-        } catch (error) {
-          console.error(
-            `❌ ERROR sending alert to ${contact.email}:`,
-            error
-          );
+        lat:
+          data.lat ??
+          "",
 
-          results.push({
-            contactId: contact._id,
-            contactName: contact.name || "Emergency Contact",
-            contactEmail: contact.email,
-            success: false,
-            error:
-              error?.message ||
-              "Failed to send emergency alert.",
-          });
-        }
-      }
+        lng:
+          data.lng ??
+          "",
 
-      /* -----------------------------------------------------
-         5. CHECK FINAL RESULT
-      ----------------------------------------------------- */
+        maps_link:
+          data.maps_link ||
+          (
+            data.lat !== "" &&
+            data.lng !== "" &&
+            data.lat !== undefined &&
+            data.lng !== undefined
+              ? `https://www.google.com/maps?q=${data.lat},${data.lng}`
+              : "Location unavailable"
+          ),
+      };
 
-      const successfulEmails = results.filter(
-        (result) => result.success
-      ).length;
+      /* ---------------------------------------------------
+         SAVE SOS
+      --------------------------------------------------- */
 
-      const failedEmails = results.filter(
-        (result) => !result.success
-      ).length;
+      alerts.unshift(
+        alert
+      );
 
-      console.log("=================================");
-      console.log("📊 SOS EMAIL RESULT");
-      console.log("Successful:", successfulEmails);
-      console.log("Failed:", failedEmails);
-      console.log("=================================");
+      write(
+        STORAGE.alerts,
+        alerts
+      );
+
+      console.log(
+        "💾 SOS saved locally:",
+        alert
+      );
+
+      /* ---------------------------------------------------
+         RETURN
+      --------------------------------------------------- */
 
       return response({
+
         ...alert,
 
-        emailSent: successfulEmails > 0,
+        emailSent:
+          false,
 
-        emailsSent: successfulEmails,
+        emailsSent:
+          0,
 
-        emailsFailed: failedEmails,
-
-        emailResults: results,
+        emailsFailed:
+          0,
 
         emailMessage:
-          successfulEmails > 0
-            ? `Emergency alert sent to ${successfulEmails} contact(s).`
-            : "Emergency alert could not be sent.",
+          "SOS saved. Notifications are handled separately.",
       });
+
     } catch (error) {
-      console.error("=================================");
-      console.error("❌ SOS SYSTEM ERROR");
-      console.error(error);
-      console.error("=================================");
+
+      console.error(
+        "❌ Could not save SOS:",
+        error
+      );
 
       throw error;
     }
   },
 
-  getMyAlerts: async () => {
-    return response(read(STORAGE.alerts));
-  },
+  /* =======================================================
+     SEND EMAIL TO ONE CONTACT
 
-  cancel: async (id) => {
-    const alerts = read(STORAGE.alerts).map((a) =>
-      a._id === id
-        ? {
-            ...a,
-            status: "cancelled",
-            cancelledAt: new Date().toISOString(),
-          }
-        : a
-    );
+     IMPORTANT:
 
-    write(STORAGE.alerts, alerts);
+     This function sends ONE email.
 
-    return response(alerts.find((a) => a._id === id));
-  },
+     SOSButton.jsx calls this function once for every
+     UNIQUE emergency contact email.
 
-  getActive: async () => {
-    return response(
-      read(STORAGE.alerts).filter(
-        (a) => a.status === "active"
-      )
-    );
-  },
+     Example:
+
+     5 contacts
+       ↓
+     5 unique emails
+       ↓
+     this function called 5 times
+       ↓
+     5 emails total
+  ======================================================= */
+
+  sendEmailToContact:
+    async ({
+      contact,
+      user,
+      lat,
+      lng,
+      mapsLink,
+    }) => {
+
+      /* ---------------------------------------------------
+         VALIDATE CONTACT
+      --------------------------------------------------- */
+
+      if (
+        !contact ||
+        !contact.email
+      ) {
+
+        return {
+
+          success:
+            false,
+
+          error:
+            "Emergency contact email is missing.",
+        };
+      }
+
+      try {
+
+        /* -------------------------------------------------
+           NORMALIZE EMAIL
+        ------------------------------------------------- */
+
+        const email =
+          contact.email
+            .trim()
+            .toLowerCase();
+
+        console.log(
+          "📨 Sending ONE email to:",
+          email
+        );
+
+        /* -------------------------------------------------
+           SEND EMAIL
+
+           GPS is NOT requested here.
+        ------------------------------------------------- */
+
+        const result =
+          await sendEmergencyAlert({
+
+            user_name:
+              user?.name ||
+              "ShaktiShield User",
+
+            emergencyEmail:
+              email,
+
+            message:
+              "🚨 Emergency! An SOS alert has been triggered from ShaktiShield. Please contact the person immediately.",
+
+            lat:
+              lat ?? "",
+
+            lng:
+              lng ?? "",
+
+            maps_link:
+              mapsLink ||
+              "Location unavailable",
+          });
+
+        /* -------------------------------------------------
+           RETURN EMAIL RESULT
+        ------------------------------------------------- */
+
+        return result;
+
+      } catch (error) {
+
+        console.error(
+          `❌ Failed to send email to ${contact.email}:`,
+          error
+        );
+
+        return {
+
+          success:
+            false,
+
+          email:
+            contact.email,
+
+          error:
+            error?.message ||
+            "Failed to send emergency email.",
+        };
+      }
+    },
+
+  /* =======================================================
+     GET MY SOS ALERTS
+  ======================================================= */
+
+  getMyAlerts:
+    async () => {
+
+      return response(
+        read(
+          STORAGE.alerts
+        )
+      );
+    },
+
+  /* =======================================================
+     CANCEL SOS
+  ======================================================= */
+
+  cancel:
+    async (id) => {
+
+      const alerts =
+        read(
+          STORAGE.alerts
+        ).map(
+          (alert) =>
+            alert._id === id
+              ? {
+
+                  ...alert,
+
+                  status:
+                    "cancelled",
+
+                  cancelledAt:
+                    new Date().toISOString(),
+                }
+
+              : alert
+        );
+
+      write(
+        STORAGE.alerts,
+        alerts
+      );
+
+      return response(
+        alerts.find(
+          (alert) =>
+            alert._id === id
+        )
+      );
+    },
+
+  /* =======================================================
+     GET ACTIVE SOS
+  ======================================================= */
+
+  getActive:
+    async () => {
+
+      return response(
+        read(
+          STORAGE.alerts
+        ).filter(
+          (alert) =>
+            alert.status ===
+            "active"
+        )
+      );
+    },
 };
 
 /* =========================================================
@@ -648,40 +976,78 @@ export const sosAPI = {
 ========================================================= */
 
 export const incidentAPI = {
+
   report: async (data) => {
-    const reports = read(STORAGE.reports);
+
+    const reports =
+      read(
+        STORAGE.reports
+      );
 
     const item = {
-      _id: uid("incident"),
+
+      _id:
+        uid("incident"),
+
       ...data,
-      status: "submitted",
-      createdAt: new Date().toISOString(),
+
+      status:
+        "submitted",
+
+      createdAt:
+        new Date().toISOString(),
     };
 
-    reports.unshift(item);
+    reports.unshift(
+      item
+    );
 
-    write(STORAGE.reports, reports);
+    write(
+      STORAGE.reports,
+      reports
+    );
 
-    return response(item);
+    return response(
+      item
+    );
   },
 
-  getMy: async () => response(read(STORAGE.reports)),
+  getMy:
+    async () =>
+      response(
+        read(
+          STORAGE.reports
+        )
+      ),
 
-  getSafePlaces: async () => response(SAFE_PLACES),
+  getSafePlaces:
+    async () =>
+      response(
+        SAFE_PLACES
+      ),
 
-  getArticles: async ({ category } = {}) =>
-    response(
-      category === "self-defense"
-        ? SELF_DEFENSE
-        : DEFAULT_TIPS
-    ),
+  getArticles:
+    async ({
+      category,
+    } = {}) =>
+      response(
+        category ===
+          "self-defense"
+          ? SELF_DEFENSE
+          : DEFAULT_TIPS
+      ),
 
-  getArticle: async (id) =>
-    response(
-      [...DEFAULT_TIPS, ...SELF_DEFENSE].find(
-        (a) => a._id === id
-      ) || null
-    ),
+  getArticle:
+    async (id) =>
+      response(
+        [
+          ...DEFAULT_TIPS,
+          ...SELF_DEFENSE,
+        ].find(
+          (a) =>
+            a._id === id
+        ) || null
+      ),
 };
 
 /* =========================================================
@@ -689,81 +1055,162 @@ export const incidentAPI = {
 ========================================================= */
 
 export const adminAPI = {
-  getStats: async () =>
-    response({
-      users: read(STORAGE.users).length,
-      reports: read(STORAGE.reports).length,
-      sosAlerts: read(STORAGE.alerts).length,
-      safePlaces: SAFE_PLACES.length,
-    }),
 
-  getUsers: async () =>
-    response(
-      read(STORAGE.users).map(({ password, ...u }) => u)
-    ),
+  getStats:
+    async () =>
+      response({
 
-  toggleUser: async () =>
-    response({
-      success: true,
-    }),
+        users:
+          read(
+            STORAGE.users
+          ).length,
 
-  getSOSAlerts: async () =>
-    response(read(STORAGE.alerts)),
+        reports:
+          read(
+            STORAGE.reports
+          ).length,
 
-  resolveSOS: async (id) => {
-    const alerts = read(STORAGE.alerts).map((a) =>
-      a._id === id
-        ? {
-            ...a,
-            status: "resolved",
-          }
-        : a
-    );
+        sosAlerts:
+          read(
+            STORAGE.alerts
+          ).length,
 
-    write(STORAGE.alerts, alerts);
+        safePlaces:
+          SAFE_PLACES.length,
+      }),
 
-    return response(
-      alerts.find((a) => a._id === id)
-    );
-  },
+  getUsers:
+    async () =>
+      response(
+        read(
+          STORAGE.users
+        ).map(
+          ({
+            password,
+            ...u
+          }) => u
+        )
+      ),
 
-  getIncidents: async () =>
-    response(read(STORAGE.reports)),
+  toggleUser:
+    async () =>
+      response({
+        success:
+          true,
+      }),
 
-  updateIncident: async (id, data) => {
-    const reports = read(STORAGE.reports).map((r) =>
-      r._id === id
-        ? {
-            ...r,
-            ...data,
-          }
-        : r
-    );
+  getSOSAlerts:
+    async () =>
+      response(
+        read(
+          STORAGE.alerts
+        )
+      ),
 
-    write(STORAGE.reports, reports);
+  resolveSOS:
+    async (id) => {
 
-    return response(
-      reports.find((r) => r._id === id)
-    );
-  },
+      const alerts =
+        read(
+          STORAGE.alerts
+        ).map(
+          (a) =>
+            a._id === id
+              ? {
+                  ...a,
+                  status:
+                    "resolved",
+                }
+              : a
+        );
 
-  createSafePlace: async (data) =>
-    response({
-      _id: uid("place"),
-      ...data,
-    }),
+      write(
+        STORAGE.alerts,
+        alerts
+      );
 
-  createArticle: async (data) =>
-    response({
-      _id: uid("article"),
-      ...data,
-    }),
+      return response(
+        alerts.find(
+          (a) =>
+            a._id === id
+        )
+      );
+    },
 
-  getAnalytics: async () =>
-    response({
-      reports: read(STORAGE.reports).length,
-      alerts: read(STORAGE.alerts).length,
-    }),
+  getIncidents:
+    async () =>
+      response(
+        read(
+          STORAGE.reports
+        )
+      ),
+
+  updateIncident:
+    async (
+      id,
+      data
+    ) => {
+
+      const reports =
+        read(
+          STORAGE.reports
+        ).map(
+          (r) =>
+            r._id === id
+              ? {
+                  ...r,
+                  ...data,
+                }
+              : r
+        );
+
+      write(
+        STORAGE.reports,
+        reports
+      );
+
+      return response(
+        reports.find(
+          (r) =>
+            r._id === id
+        )
+      );
+    },
+
+  createSafePlace:
+    async (data) =>
+      response({
+
+        _id:
+          uid("place"),
+
+        ...data,
+      }),
+
+  createArticle:
+    async (data) =>
+      response({
+
+        _id:
+          uid("article"),
+
+        ...data,
+      }),
+
+  getAnalytics:
+    async () =>
+      response({
+
+        reports:
+          read(
+            STORAGE.reports
+          ).length,
+
+        alerts:
+          read(
+            STORAGE.alerts
+          ).length,
+      }),
 };
 
 /* =========================================================
