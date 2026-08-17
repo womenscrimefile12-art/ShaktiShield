@@ -1,346 +1,680 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { incidentAPI } from "../services/api";
 import Map from "../components/Map";
 
-const VERIFIED_SAFETY_POINTS = [
-  {
-    _id: "verified-police-1",
-    name: "Nearest Police Station",
-    type: "police",
-    address: "Police Station - Emergency Support",
-    phone: "112",
-    hours: "Open 24/7",
-    verified: true,
-    rating: 5,
-    description:
-      "Verified emergency support point for immediate police assistance.",
-    location: {
-      coordinates: [77.209, 28.6139],
-    },
+/* =========================================================
+   OPENSTREETMAP OVERPASS API
+========================================================= */
+
+const OVERPASS_URL =
+  "https://overpass-api.de/api/interpreter";
+
+/* =========================================================
+   SEARCH SETTINGS
+========================================================= */
+
+const SEARCH_RADIUS = 10000; // 10 km
+
+/* =========================================================
+   TYPE CONFIGURATION
+========================================================= */
+
+const typeConfig = {
+  police: {
+    icon: "🚔",
+    label: "Police",
   },
-  {
-    _id: "verified-hospital-1",
-    name: "Emergency Hospital",
-    type: "hospital",
-    address: "Emergency Medical Support Center",
-    phone: "112",
-    hours: "Open 24/7",
-    verified: true,
-    rating: 4.8,
-    description:
-      "Verified medical assistance point for emergency situations.",
-    location: {
-      coordinates: [77.219, 28.6239],
-    },
+
+  hospital: {
+    icon: "🏥",
+    label: "Hospital",
   },
-  {
-    _id: "verified-community-1",
-    name: "Women Safety Support Center",
-    type: "community",
-    address: "Community Safety & Support Center",
-    phone: "181",
-    hours: "Open 24/7",
-    verified: true,
-    rating: 4.9,
-    description:
-      "Support point for women seeking safety assistance and guidance.",
-    location: {
-      coordinates: [77.199, 28.6039],
-    },
+
+  shelter: {
+    icon: "🏠",
+    label: "Shelter",
   },
-];
 
-const SafePlaces = () => {
-  const [places, setPlaces] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [locationLoading, setLocationLoading] = useState(true);
-  const [locationError, setLocationError] = useState("");
-  const [error, setError] = useState("");
+  community: {
+    icon: "🏛️",
+    label: "Community",
+  },
 
-  const [center, setCenter] = useState([28.6139, 77.209]);
-  const [userLocation, setUserLocation] = useState(null);
+  pharmacy: {
+    icon: "💊",
+    label: "Pharmacy",
+  },
 
-  const [search, setSearch] = useState("");
-  const [selectedType, setSelectedType] = useState("all");
+  other: {
+    icon: "📍",
+    label: "Other",
+  },
+};
 
-  const typeConfig = {
-    police: {
-      icon: "🚔",
-      label: "Police",
-    },
-    hospital: {
-      icon: "🏥",
-      label: "Hospital",
-    },
-    shelter: {
-      icon: "🏠",
-      label: "Shelter",
-    },
-    community: {
-      icon: "🏛️",
-      label: "Community",
-    },
-    other: {
-      icon: "📍",
-      label: "Other",
+/* =========================================================
+   DISTANCE CALCULATION
+   Haversine formula
+========================================================= */
+
+const getDistanceInKm = (
+  lat1,
+  lng1,
+  lat2,
+  lng2
+) => {
+  const earthRadius = 6371;
+
+  const dLat =
+    ((lat2 - lat1) * Math.PI) / 180;
+
+  const dLng =
+    ((lng2 - lng1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) *
+      Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  const c =
+    2 *
+    Math.atan2(
+      Math.sqrt(a),
+      Math.sqrt(1 - a)
+    );
+
+  return earthRadius * c;
+};
+
+/* =========================================================
+   DESCRIPTION
+========================================================= */
+
+const getDescription = (type) => {
+  switch (type) {
+    case "police":
+      return "Nearby police station mapped in OpenStreetMap.";
+
+    case "hospital":
+      return "Nearby hospital or medical facility mapped in OpenStreetMap.";
+
+    case "shelter":
+      return "Nearby shelter or support facility mapped in OpenStreetMap.";
+
+    case "community":
+      return "Nearby community support facility mapped in OpenStreetMap.";
+
+    case "pharmacy":
+      return "Nearby pharmacy mapped in OpenStreetMap.";
+
+    default:
+      return "Nearby safety-related location mapped in OpenStreetMap.";
+  }
+};
+
+/* =========================================================
+   CONVERT OPENSTREETMAP RESULT
+   INTO SHAKTISHIELD FORMAT
+========================================================= */
+
+const convertOSMPlace = (element) => {
+  const tags = element.tags || {};
+
+  let lat = element.lat;
+  let lng = element.lon;
+
+  /*
+   * OSM nodes have lat/lon directly.
+   * OSM ways usually have center coordinates.
+   */
+
+  if (
+    (!lat || !lng) &&
+    element.center
+  ) {
+    lat = element.center.lat;
+    lng = element.center.lon;
+  }
+
+  if (
+    typeof lat !== "number" ||
+    typeof lng !== "number"
+  ) {
+    return null;
+  }
+
+  /* =======================================================
+     DETERMINE PLACE TYPE
+  ======================================================= */
+
+  let type = "other";
+
+  if (
+    tags.amenity === "police"
+  ) {
+    type = "police";
+  }
+
+  else if (
+    tags.amenity === "hospital" ||
+    tags.amenity === "clinic"
+  ) {
+    type = "hospital";
+  }
+
+  else if (
+    tags.amenity === "pharmacy"
+  ) {
+    type = "pharmacy";
+  }
+
+  else if (
+    tags.amenity === "shelter" ||
+    tags.social_facility === "shelter"
+  ) {
+    type = "shelter";
+  }
+
+  else if (
+    tags.amenity === "community_centre" ||
+    tags.amenity === "social_centre" ||
+    tags.amenity === "social_facility"
+  ) {
+    type = "community";
+  }
+
+  /* =======================================================
+     ADDRESS
+  ======================================================= */
+
+  const addressParts = [
+    tags["addr:housenumber"],
+    tags["addr:street"],
+    tags["addr:suburb"],
+    tags["addr:city"],
+    tags["addr:state"],
+  ].filter(Boolean);
+
+  const address =
+    addressParts.length > 0
+      ? addressParts.join(", ")
+      : "Address available on map";
+
+  /* =======================================================
+     RETURN STANDARDIZED OBJECT
+  ======================================================= */
+
+  return {
+    _id: `osm-${element.type}-${element.id}`,
+
+    name:
+      tags.name ||
+      `${typeConfig[type].label} nearby`,
+
+    type,
+
+    address,
+
+    phone:
+      tags.phone ||
+      tags["contact:phone"] ||
+      tags["contact:mobile"] ||
+      "",
+
+    website:
+      tags.website ||
+      tags["contact:website"] ||
+      "",
+
+    hours:
+      tags.opening_hours ||
+      "",
+
+    description:
+      getDescription(type),
+
+    verified: false,
+
+    source: "OpenStreetMap",
+
+    location: {
+      coordinates: [
+        Number(lng),
+        Number(lat),
+      ],
     },
   };
+};
 
-  /* =========================================================
-     DISTANCE CALCULATION
-  ========================================================= */
+/* =========================================================
+   FETCH NEARBY PLACES
+========================================================= */
 
-  const getDistanceInKm = (
-    lat1,
-    lng1,
-    lat2,
-    lng2
-  ) => {
-    const earthRadius = 6371;
+const fetchNearbyPlaces = async (
+  lat,
+  lng
+) => {
+  /*
+   * Search within 10 km of the user.
+   */
 
-    const dLat =
-      ((lat2 - lat1) * Math.PI) / 180;
+  const radius = SEARCH_RADIUS;
 
-    const dLng =
-      ((lng2 - lng1) * Math.PI) / 180;
+  const query = `
+    [out:json][timeout:30];
 
-    const a =
-      Math.sin(dLat / 2) *
-        Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLng / 2) *
-        Math.sin(dLng / 2);
+    (
+      /* POLICE */
 
-    const c =
-      2 *
-      Math.atan2(
-        Math.sqrt(a),
-        Math.sqrt(1 - a)
-      );
+      node["amenity"="police"]
+        (around:${radius},${lat},${lng});
 
-    return earthRadius * c;
-  };
+      way["amenity"="police"]
+        (around:${radius},${lat},${lng});
 
-  /* =========================================================
-     GET COORDINATES
-  ========================================================= */
+      /* HOSPITAL */
 
-  const getCoordinates = (place) => {
-    if (
-      !place ||
-      !place.location ||
-      !Array.isArray(place.location.coordinates) ||
-      place.location.coordinates.length < 2
-    ) {
-      return null;
-    }
+      node["amenity"="hospital"]
+        (around:${radius},${lat},${lng});
 
-    return {
-      lng: Number(
-        place.location.coordinates[0]
-      ),
-      lat: Number(
-        place.location.coordinates[1]
-      ),
-    };
-  };
+      way["amenity"="hospital"]
+        (around:${radius},${lat},${lng});
 
-  /* =========================================================
-     LOAD SAFE PLACES
-  ========================================================= */
+      /* CLINIC */
 
-  const loadPlaces = useCallback(
-    async (
-      lat = null,
-      lng = null,
-      showRefresh = false
-    ) => {
-      try {
-        setError("");
+      node["amenity"="clinic"]
+        (around:${radius},${lat},${lng});
 
-        if (showRefresh) {
-          setRefreshing(true);
-        } else {
-          setLoading(true);
-        }
+      way["amenity"="clinic"]
+        (around:${radius},${lat},${lng});
 
-        let response;
+      /* PHARMACY */
 
-        if (
-          lat !== null &&
-          lng !== null
-        ) {
-          response =
-            await incidentAPI.getSafePlaces({
-              lat,
-              lng,
-            });
-        } else {
-          response =
-            await incidentAPI.getSafePlaces();
-        }
+      node["amenity"="pharmacy"]
+        (around:${radius},${lat},${lng});
 
-        const data = Array.isArray(
-          response?.data
-        )
-          ? response.data
-          : [];
+      way["amenity"="pharmacy"]
+        (around:${radius},${lat},${lng});
 
-        /*
-         * If backend returns places, use them.
-         * Otherwise show verified safety points.
-         */
+      /* SHELTER */
 
-        if (data.length > 0) {
-          setPlaces(data);
-        } else {
-          setPlaces(
-            VERIFIED_SAFETY_POINTS
-          );
-        }
-      } catch (err) {
-        console.error(
-          "Safe places error:",
-          err
-        );
+      node["amenity"="shelter"]
+        (around:${radius},${lat},${lng});
 
-        /*
-         * Backend unavailable:
-         * show verified fallback points
-         */
+      way["amenity"="shelter"]
+        (around:${radius},${lat},${lng});
 
-        setPlaces(
-          VERIFIED_SAFETY_POINTS
-        );
+      node["social_facility"="shelter"]
+        (around:${radius},${lat},${lng});
 
-        setError(
-          "Online safety locations are unavailable. Showing verified safety points."
-        );
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
+      way["social_facility"="shelter"]
+        (around:${radius},${lat},${lng});
+
+      /* COMMUNITY */
+
+      node["amenity"="community_centre"]
+        (around:${radius},${lat},${lng});
+
+      way["amenity"="community_centre"]
+        (around:${radius},${lat},${lng});
+
+      node["amenity"="social_centre"]
+        (around:${radius},${lat},${lng});
+
+      way["amenity"="social_centre"]
+        (around:${radius},${lat},${lng});
+
+      node["amenity"="social_facility"]
+        (around:${radius},${lat},${lng});
+
+      way["amenity"="social_facility"]
+        (around:${radius},${lat},${lng});
+    );
+
+    out center tags;
+  `;
+
+  const response =
+    await fetch(
+      OVERPASS_URL,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/x-www-form-urlencoded",
+        },
+
+        body:
+          "data=" +
+          encodeURIComponent(query),
       }
-    },
-    []
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      "Unable to access nearby safety locations."
+    );
+  }
+
+  const data =
+    await response.json();
+
+  const places =
+    (data.elements || [])
+      .map(convertOSMPlace)
+      .filter(Boolean);
+
+  /*
+   * Remove duplicate OSM locations.
+   */
+
+  const uniquePlaces = Array.from(
+    new Map(
+      places.map((place) => [
+        place._id,
+        place,
+      ])
+    ).values()
   );
 
-  /* =========================================================
-     DETECT LOCATION
-  ========================================================= */
+  return uniquePlaces;
+};
+
+/* =========================================================
+   SAFE PLACES COMPONENT
+========================================================= */
+
+const SafePlaces = () => {
+  /* =======================================================
+     STATE
+  ======================================================= */
+
+  const [places, setPlaces] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [refreshing, setRefreshing] =
+    useState(false);
+
+  const [locationLoading, setLocationLoading] =
+    useState(true);
+
+  const [locationError, setLocationError] =
+    useState("");
+
+  const [error, setError] =
+    useState("");
+
+  const [center, setCenter] =
+    useState([
+      28.6139,
+      77.209,
+    ]);
+
+  const [userLocation, setUserLocation] =
+    useState(null);
+
+  const [search, setSearch] =
+    useState("");
+
+  const [selectedType, setSelectedType] =
+    useState("all");
+
+  /* =======================================================
+     LOAD PLACES
+  ======================================================= */
+
+  const loadPlaces =
+    useCallback(
+      async (
+        lat,
+        lng,
+        showRefresh = false
+      ) => {
+        try {
+          setError("");
+
+          if (showRefresh) {
+            setRefreshing(true);
+          } else {
+            setLoading(true);
+          }
+
+          const nearbyPlaces =
+            await fetchNearbyPlaces(
+              lat,
+              lng
+            );
+
+          setPlaces(
+            nearbyPlaces
+          );
+
+          if (
+            nearbyPlaces.length === 0
+          ) {
+            setError(
+              "No safety-related locations were found within 10 km of your current location."
+            );
+          }
+
+        } catch (err) {
+          console.error(
+            "Nearby safety places error:",
+            err
+          );
+
+          setPlaces([]);
+
+          setError(
+            "Unable to load nearby safety locations. Please check your internet connection and try again."
+          );
+
+        } finally {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      },
+      []
+    );
+
+  /* =======================================================
+     DETECT USER LOCATION
+  ======================================================= */
 
   const detectLocation =
     useCallback(() => {
       setLocationLoading(true);
       setLocationError("");
+      setError("");
 
-      if (!navigator.geolocation) {
+      if (
+        !navigator.geolocation
+      ) {
         setLocationLoading(false);
+        setLoading(false);
 
         setLocationError(
           "Location services are not supported by this browser."
         );
-
-        loadPlaces();
 
         return;
       }
 
       navigator.geolocation.getCurrentPosition(
         async (position) => {
-          const lat =
-            position.coords.latitude;
+          try {
+            const lat =
+              position.coords.latitude;
 
-          const lng =
-            position.coords.longitude;
+            const lng =
+              position.coords.longitude;
 
-          setUserLocation({
-            lat,
-            lng,
-          });
+            console.log(
+              "ShaktiShield user location:",
+              lat,
+              lng
+            );
 
-          setCenter([
-            lat,
-            lng,
-          ]);
+            /*
+             * Save user location.
+             */
 
-          await loadPlaces(
-            lat,
-            lng
-          );
+            setUserLocation({
+              lat,
+              lng,
+            });
 
-          setLocationLoading(false);
+            /*
+             * Center map on user.
+             */
+
+            setCenter([
+              lat,
+              lng,
+            ]);
+
+            /*
+             * Find nearby safety places.
+             */
+
+            await loadPlaces(
+              lat,
+              lng
+            );
+
+          } catch (err) {
+            console.error(
+              "Location processing error:",
+              err
+            );
+
+            setError(
+              "Unable to find nearby safety places."
+            );
+
+          } finally {
+            setLocationLoading(false);
+          }
         },
 
-        async () => {
-          setLocationLoading(false);
-
-          setLocationError(
-            "Location access is unavailable. Showing available verified safety points."
+        (geoError) => {
+          console.error(
+            "Geolocation error:",
+            geoError
           );
 
-          await loadPlaces();
+          setLocationLoading(false);
+          setLoading(false);
+
+          if (
+            geoError.code ===
+            geoError.PERMISSION_DENIED
+          ) {
+            setLocationError(
+              "Location permission was denied. Please allow location access to find safe places near you."
+            );
+          }
+
+          else if (
+            geoError.code ===
+            geoError.POSITION_UNAVAILABLE
+          ) {
+            setLocationError(
+              "Your current location could not be determined. Please check your device location settings."
+            );
+          }
+
+          else if (
+            geoError.code ===
+            geoError.TIMEOUT
+          ) {
+            setLocationError(
+              "Location request timed out. Please try again."
+            );
+          }
+
+          else {
+            setLocationError(
+              "Unable to determine your location."
+            );
+          }
         },
 
         {
           enableHighAccuracy: true,
-          timeout: 10000,
+
+          timeout: 15000,
+
           maximumAge: 60000,
         }
       );
     }, [loadPlaces]);
 
+  /* =======================================================
+     INITIAL LOCATION
+  ======================================================= */
+
   useEffect(() => {
     detectLocation();
   }, [detectLocation]);
 
-  /* =========================================================
+  /* =======================================================
      PROCESS PLACES
-  ========================================================= */
+  ======================================================= */
 
   const processedPlaces =
     useMemo(() => {
       return places
+
         .map((place) => {
-          const coordinates =
-            getCoordinates(place);
+          const [
+            lng,
+            lat,
+          ] =
+            place.location
+              ?.coordinates || [];
 
           let distance = null;
 
           if (
-            coordinates &&
-            userLocation
+            userLocation &&
+            typeof lat === "number" &&
+            typeof lng === "number"
           ) {
             distance =
               getDistanceInKm(
                 userLocation.lat,
                 userLocation.lng,
-                coordinates.lat,
-                coordinates.lng
+                lat,
+                lng
               );
           }
 
           return {
             ...place,
             distance,
-            verified:
-              place.verified !== false,
           };
         })
 
+        /* SEARCH */
+
         .filter((place) => {
           const name =
-            place.name?.toLowerCase() ||
-            "";
+            place.name
+              ?.toLowerCase() || "";
 
           const address =
-            place.address?.toLowerCase() ||
-            "";
+            place.address
+              ?.toLowerCase() || "";
 
           const type =
-            place.type?.toLowerCase() ||
-            "";
+            place.type
+              ?.toLowerCase() || "";
 
           const searchValue =
             search
@@ -349,9 +683,15 @@ const SafePlaces = () => {
 
           const matchesSearch =
             !searchValue ||
-            name.includes(searchValue) ||
-            address.includes(searchValue) ||
-            type.includes(searchValue);
+            name.includes(
+              searchValue
+            ) ||
+            address.includes(
+              searchValue
+            ) ||
+            type.includes(
+              searchValue
+            );
 
           const matchesType =
             selectedType === "all" ||
@@ -363,12 +703,20 @@ const SafePlaces = () => {
           );
         })
 
-        .sort((a, b) => {
-          if (a.distance === null)
-            return 1;
+        /* SORT NEAREST FIRST */
 
-          if (b.distance === null)
+        .sort((a, b) => {
+          if (
+            a.distance === null
+          ) {
+            return 1;
+          }
+
+          if (
+            b.distance === null
+          ) {
             return -1;
+          }
 
           return (
             a.distance -
@@ -382,17 +730,24 @@ const SafePlaces = () => {
       userLocation,
     ]);
 
-  /* =========================================================
+  /* =======================================================
      MAP MARKERS
-  ========================================================= */
+  ======================================================= */
 
   const markers =
     processedPlaces
       .map((place) => {
-        const coordinates =
-          getCoordinates(place);
+        const [
+          lng,
+          lat,
+        ] =
+          place.location
+            ?.coordinates || [];
 
-        if (!coordinates) {
+        if (
+          typeof lat !== "number" ||
+          typeof lng !== "number"
+        ) {
           return null;
         }
 
@@ -402,87 +757,132 @@ const SafePlaces = () => {
           ] ||
           typeConfig.other;
 
+        const distanceText =
+          place.distance !== null
+            ? place.distance < 1
+              ? `${Math.round(
+                  place.distance *
+                    1000
+                )} m away`
+              : `${place.distance.toFixed(
+                  1
+                )} km away`
+            : "";
+
         return {
+          id: place._id,
+
           position: [
-            coordinates.lat,
-            coordinates.lng,
+            lat,
+            lng,
           ],
 
           popup: `
-            <div style="min-width:220px;">
-              <strong>
+            <div style="
+              min-width:230px;
+              font-family:Arial,sans-serif;
+              line-height:1.5;
+            ">
+
+              <strong style="
+                font-size:15px;
+              ">
                 ${config.icon}
-                ${place.name || "Verified Safety Point"}
+                ${place.name || "Safety Place"}
               </strong>
 
               <br/>
 
-              <span>
+              <span style="
+                color:#64748b;
+                font-size:13px;
+              ">
                 ${place.address || "Address unavailable"}
               </span>
 
               ${
                 place.phone
-                  ? `<br/>📞 ${place.phone}`
+                  ? `
+                    <br/>
+                    📞 ${place.phone}
+                  `
                   : ""
               }
 
               ${
-                place.distance !== null
-                  ? `<br/>📍 ${place.distance.toFixed(
-                      1
-                    )} km away`
+                place.hours
+                  ? `
+                    <br/>
+                    🕐 ${place.hours}
+                  `
+                  : ""
+              }
+
+              ${
+                distanceText
+                  ? `
+                    <br/>
+                    📍 ${distanceText}
+                  `
                   : ""
               }
 
               <br/>
 
-              <strong style="color:#16a34a;">
-                ✓ Verified Safety Point
-              </strong>
+              <small style="
+                color:#64748b;
+              ">
+                Data source: OpenStreetMap
+              </small>
+
             </div>
           `,
         };
       })
       .filter(Boolean);
 
-  /* =========================================================
+  /* =======================================================
      REFRESH
-  ========================================================= */
+  ======================================================= */
 
   const handleRefresh =
     () => {
-      if (userLocation) {
+      if (
+        userLocation
+      ) {
         loadPlaces(
           userLocation.lat,
           userLocation.lng,
           true
         );
       } else {
-        loadPlaces(
-          null,
-          null,
-          true
-        );
+        detectLocation();
       }
     };
 
-  /* =========================================================
+  /* =======================================================
      DIRECTIONS
-  ========================================================= */
+  ======================================================= */
 
   const handleDirections =
     (place) => {
-      const coordinates =
-        getCoordinates(place);
+      const [
+        lng,
+        lat,
+      ] =
+        place.location
+          ?.coordinates || [];
 
-      if (!coordinates) {
+      if (
+        typeof lat !== "number" ||
+        typeof lng !== "number"
+      ) {
         return;
       }
 
       const url =
         `https://www.google.com/maps/dir/?api=1` +
-        `&destination=${coordinates.lat},${coordinates.lng}`;
+        `&destination=${lat},${lng}`;
 
       window.open(
         url,
@@ -491,9 +891,9 @@ const SafePlaces = () => {
       );
     };
 
-  /* =========================================================
+  /* =======================================================
      CALL
-  ========================================================= */
+  ======================================================= */
 
   const handleCall =
     (phone) => {
@@ -505,9 +905,9 @@ const SafePlaces = () => {
         `tel:${phone}`;
     };
 
-  /* =========================================================
+  /* =======================================================
      EMERGENCY
-  ========================================================= */
+  ======================================================= */
 
   const handleEmergency =
     () => {
@@ -515,42 +915,52 @@ const SafePlaces = () => {
         "tel:112";
     };
 
-  /* =========================================================
-     LOADING
-  ========================================================= */
+  /* =======================================================
+     LOADING SCREEN
+  ======================================================= */
 
   if (loading) {
     return (
       <div className="safeplaces-page">
+
         <div className="safeplaces-loading">
+
           <div className="loading-icon">
-            🛡️
+            📍
           </div>
 
           <h2>
-            Finding Safe Places...
+            Finding Safe Places Near You...
           </h2>
 
           <p>
-            ShaktiShield is finding
-            verified safety locations
-            near you.
+            ShaktiShield is detecting your
+            location and finding nearby
+            police stations, hospitals,
+            pharmacies and support facilities.
           </p>
+
         </div>
+
       </div>
     );
   }
 
+  /* =======================================================
+     MAIN UI
+  ======================================================= */
+
   return (
     <div className="safeplaces-page">
 
-      {/* =====================================================
+      {/* ===================================================
           HEADER
-      ===================================================== */}
+      =================================================== */}
 
       <div className="safeplaces-header">
 
         <div>
+
           <div className="page-eyebrow">
             🛡️ SHAKTISHIELD SAFETY NETWORK
           </div>
@@ -560,24 +970,28 @@ const SafePlaces = () => {
           </h1>
 
           <p className="page-subtitle">
-            Quickly find verified police
-            stations, hospitals, shelters
-            and community support locations.
+            Find nearby police stations,
+            hospitals, pharmacies, shelters
+            and community support locations
+            based on your current GPS location.
           </p>
+
         </div>
 
         <button
           className="emergency-button"
-          onClick={handleEmergency}
+          onClick={
+            handleEmergency
+          }
         >
           🚨 Emergency 112
         </button>
 
       </div>
 
-      {/* =====================================================
+      {/* ===================================================
           LOCATION STATUS
-      ===================================================== */}
+      =================================================== */}
 
       <div className="location-status card">
 
@@ -588,26 +1002,40 @@ const SafePlaces = () => {
           </div>
 
           <div>
+
             <strong>
+
               {locationLoading
                 ? "Detecting your location..."
+
                 : userLocation
                 ? "Your current location is active"
+
                 : "Location unavailable"}
+
             </strong>
 
             <p>
+
               {locationError ||
-                "Verified safety points are sorted by distance from your location."}
+                (userLocation
+                  ? "Safety places are sorted from nearest to farthest."
+                  : "Allow location access to find nearby safety places.")}
+
             </p>
+
           </div>
 
         </div>
 
         <button
           className="secondary-button"
-          onClick={detectLocation}
-          disabled={locationLoading}
+          onClick={
+            detectLocation
+          }
+          disabled={
+            locationLoading
+          }
         >
           {locationLoading
             ? "Locating..."
@@ -616,9 +1044,9 @@ const SafePlaces = () => {
 
       </div>
 
-      {/* =====================================================
+      {/* ===================================================
           SEARCH + FILTER
-      ===================================================== */}
+      =================================================== */}
 
       <div className="controls card">
 
@@ -630,7 +1058,7 @@ const SafePlaces = () => {
 
           <input
             type="text"
-            placeholder="Search police, hospital, shelter..."
+            placeholder="Search police, hospital, pharmacy..."
             value={search}
             onChange={(e) =>
               setSearch(
@@ -645,6 +1073,7 @@ const SafePlaces = () => {
               onClick={() =>
                 setSearch("")
               }
+              aria-label="Clear search"
             >
               ✕
             </button>
@@ -661,9 +1090,7 @@ const SafePlaces = () => {
                 : "filter-button"
             }
             onClick={() =>
-              setSelectedType(
-                "all"
-              )
+              setSelectedType("all")
             }
           >
             All
@@ -697,21 +1124,25 @@ const SafePlaces = () => {
 
       </div>
 
-      {/* =====================================================
-          ERROR
-      ===================================================== */}
+      {/* ===================================================
+          ERROR / NOTICE
+      =================================================== */}
 
-      {error && (
+      {(error ||
+        locationError) && (
         <div className="error-card card">
 
           <div>
+
             <strong>
               ⚠️ Safety Network Notice
             </strong>
 
             <p>
-              {error}
+              {error ||
+                locationError}
             </p>
+
           </div>
 
           <button
@@ -726,64 +1157,66 @@ const SafePlaces = () => {
         </div>
       )}
 
-      {/* =====================================================
-          VERIFIED SAFETY POINTS
-      ===================================================== */}
+      {/* ===================================================
+          LOCATION SUMMARY
+      =================================================== */}
 
       <div className="verified-banner">
 
         <div className="verified-banner-icon">
-          🛡️
+          📍
         </div>
 
         <div>
 
           <h2>
-            Verified Safety Points
+            Nearby Safety Places
           </h2>
 
           <p>
-            These locations are marked as
-            verified safety points by
-            ShaktiShield.
+            Real map locations found
+            around your current GPS
+            position.
           </p>
 
         </div>
 
         <div className="verified-total">
+
           <strong>
             {processedPlaces.length}
           </strong>
 
           <span>
-            Locations
+            Nearby
           </span>
+
         </div>
 
       </div>
 
-      {/* =====================================================
+      {/* ===================================================
           MAP
-      ===================================================== */}
+      =================================================== */}
 
       <div className="map-section">
 
         <div className="section-header">
 
           <div>
+
             <h2>
               Safety Map
             </h2>
 
             <p>
-              {processedPlaces.length} safe
-              place
-              {processedPlaces.length !==
-              1
+              {processedPlaces.length} location
+              {processedPlaces.length !== 1
                 ? "s"
                 : ""}{" "}
-              found
+              found near you
             </p>
+
           </div>
 
           <button
@@ -805,28 +1238,33 @@ const SafePlaces = () => {
         <Map
           center={center}
           markers={markers}
+          userLocation={
+            userLocation
+          }
           height="420px"
         />
 
       </div>
 
-      {/* =====================================================
-          VERIFIED PLACES
-      ===================================================== */}
+      {/* ===================================================
+          PLACES
+      =================================================== */}
 
       <div className="places-section">
 
         <div className="section-header">
 
           <div>
+
             <h2>
-              Verified Safety Points
+              Nearby Places
             </h2>
 
             <p>
-              Choose a verified location
-              for assistance or directions.
+              Closest safety locations
+              are shown first.
             </p>
+
           </div>
 
         </div>
@@ -841,24 +1279,22 @@ const SafePlaces = () => {
             </div>
 
             <h3>
-              No Safety Points Found
+              No Nearby Places Found
             </h3>
 
             <p>
-              We couldn't find locations
-              matching your search.
+              No mapped safety locations
+              were found within 10 km of
+              your current location.
             </p>
 
             <button
               className="primary-button"
-              onClick={() => {
-                setSearch("");
-                setSelectedType(
-                  "all"
-                );
-              }}
+              onClick={
+                detectLocation
+              }
             >
-              Show All Places
+              📍 Detect Location Again
             </button>
 
           </div>
@@ -879,13 +1315,12 @@ const SafePlaces = () => {
                 return (
                   <div
                     key={
-                      place._id ||
-                      `${place.name}-${place.address}`
+                      place._id
                     }
                     className="safe-place-card card"
                   >
 
-                    {/* CARD HEADER */}
+                    {/* PLACE HEADER */}
 
                     <div className="place-header">
 
@@ -896,8 +1331,7 @@ const SafePlaces = () => {
                       <div className="place-title">
 
                         <h3>
-                          {place.name ||
-                            "Verified Safety Point"}
+                          {place.name}
                         </h3>
 
                         <span>
@@ -905,12 +1339,6 @@ const SafePlaces = () => {
                         </span>
 
                       </div>
-
-                      {place.verified && (
-                        <div className="verified">
-                          ✓ Verified
-                        </div>
-                      )}
 
                     </div>
 
@@ -922,23 +1350,16 @@ const SafePlaces = () => {
                       </p>
                     )}
 
-                    {/* RATING */}
+                    {/* SOURCE */}
 
                     <div className="rating-row">
 
                       <span>
-                        ⭐
-                        {place.rating
-                          ? Number(
-                              place.rating
-                            ).toFixed(
-                              1
-                            )
-                          : "4.8"}
+                        📍 Nearby
                       </span>
 
                       <span>
-                        Trusted Safety Point
+                        OpenStreetMap location
                       </span>
 
                     </div>
@@ -970,9 +1391,10 @@ const SafePlaces = () => {
                       {place.distance !==
                         null && (
                         <p className="distance">
-                          🚶{" "}
-                          {place.distance <
-                          1
+
+                          📏{" "}
+
+                          {place.distance < 1
                             ? `${Math.round(
                                 place.distance *
                                   1000
@@ -980,6 +1402,7 @@ const SafePlaces = () => {
                             : `${place.distance.toFixed(
                                 1
                               )} km away`}
+
                         </p>
                       )}
 
@@ -1025,9 +1448,9 @@ const SafePlaces = () => {
 
       </div>
 
-      {/* =====================================================
+      {/* ===================================================
           SAFETY NOTICE
-      ===================================================== */}
+      =================================================== */}
 
       <div className="safety-notice card">
 
@@ -1038,34 +1461,44 @@ const SafePlaces = () => {
         <div>
 
           <h3>
-            Stay Safe with ShaktiShield
+            Important Safety Notice
           </h3>
 
           <p>
-            In an immediate emergency,
-            contact emergency services.
-            Keep your trusted contacts
-            informed about your location
-            and avoid isolated areas
-            whenever possible.
+            Locations are retrieved from
+            OpenStreetMap and may not be
+            personally verified by
+            ShaktiShield. Always confirm
+            the location before relying on
+            it in an emergency. For immediate
+            emergencies in India, call 112.
           </p>
 
         </div>
 
       </div>
 
-      {/* =====================================================
+      {/* ===================================================
           PAGE CSS
-      ===================================================== */}
+      =================================================== */}
 
       <style>{`
+
+        /* ================================================
+           MAIN PAGE
+        ================================================ */
 
         .safeplaces-page {
           width: 100%;
           max-width: 1400px;
           margin: 0 auto;
           padding: 20px;
+          box-sizing: border-box;
         }
+
+        /* ================================================
+           HEADER
+        ================================================ */
 
         .safeplaces-header {
           display: flex;
@@ -1087,13 +1520,19 @@ const SafePlaces = () => {
           margin: 0 0 8px;
           font-size: 32px;
           font-weight: 850;
+          line-height: 1.15;
         }
 
         .page-subtitle {
           color: var(--text-muted);
-          max-width: 700px;
+          max-width: 720px;
           line-height: 1.6;
+          margin: 0;
         }
+
+        /* ================================================
+           EMERGENCY
+        ================================================ */
 
         .emergency-button {
           border: none;
@@ -1115,6 +1554,14 @@ const SafePlaces = () => {
           background: #b91c1c;
         }
 
+        .emergency-button:active {
+          transform: scale(0.98);
+        }
+
+        /* ================================================
+           LOCATION STATUS
+        ================================================ */
+
         .location-status {
           display: flex;
           align-items: center;
@@ -1128,6 +1575,7 @@ const SafePlaces = () => {
           display: flex;
           align-items: center;
           gap: 14px;
+          min-width: 0;
         }
 
         .location-icon {
@@ -1138,13 +1586,23 @@ const SafePlaces = () => {
           place-items: center;
           background: rgba(59, 130, 246, 0.1);
           font-size: 20px;
+          flex-shrink: 0;
+        }
+
+        .location-status strong {
+          font-size: 14px;
         }
 
         .location-status p {
           margin: 4px 0 0;
           color: var(--text-muted);
           font-size: 13px;
+          line-height: 1.5;
         }
+
+        /* ================================================
+           SEARCH + FILTER
+        ================================================ */
 
         .controls {
           padding: 16px;
@@ -1165,6 +1623,7 @@ const SafePlaces = () => {
 
         .search-box input {
           flex: 1;
+          min-width: 0;
           border: none;
           outline: none;
           background: transparent;
@@ -1177,6 +1636,7 @@ const SafePlaces = () => {
           background: transparent;
           cursor: pointer;
           font-size: 16px;
+          padding: 3px 6px;
         }
 
         .filter-row {
@@ -1201,9 +1661,14 @@ const SafePlaces = () => {
         }
 
         .filter-button.active {
-          background: var(--primary, #7c3aed);
+          background:
+            var(--primary, #7c3aed);
           color: white;
         }
+
+        /* ================================================
+           BUTTONS
+        ================================================ */
 
         .secondary-button,
         .primary-button,
@@ -1217,12 +1682,14 @@ const SafePlaces = () => {
         }
 
         .secondary-button {
-          background: rgba(128, 128, 128, 0.12);
+          background:
+            rgba(128, 128, 128, 0.12);
           color: inherit;
         }
 
         .primary-button {
-          background: var(--primary, #7c3aed);
+          background:
+            var(--primary, #7c3aed);
           color: white;
         }
 
@@ -1241,9 +1708,37 @@ const SafePlaces = () => {
         .secondary-button:disabled {
           opacity: 0.6;
           cursor: not-allowed;
+          transform: none;
         }
 
-        /* VERIFIED BANNER */
+        /* ================================================
+           ERROR
+        ================================================ */
+
+        .error-card {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 15px;
+          padding: 15px;
+          margin-bottom: 20px;
+          border-left: 4px solid #dc2626;
+          background: #fff7f7;
+        }
+
+        .error-card strong {
+          color: #991b1b;
+        }
+
+        .error-card p {
+          margin: 5px 0 0;
+          color: var(--text-muted);
+          line-height: 1.5;
+        }
+
+        /* ================================================
+           RESULTS BANNER
+        ================================================ */
 
         .verified-banner {
           display: flex;
@@ -1255,12 +1750,13 @@ const SafePlaces = () => {
           background:
             linear-gradient(
               135deg,
-              #f0fdf4,
+              #eff6ff,
               #ffffff
             );
-          border: 1px solid #bbf7d0;
-          box-shadow: 0 8px 25px
-            rgba(22, 163, 74, 0.08);
+          border: 1px solid #bfdbfe;
+          box-shadow:
+            0 8px 25px
+            rgba(37, 99, 235, 0.07);
         }
 
         .verified-banner-icon {
@@ -1269,7 +1765,7 @@ const SafePlaces = () => {
           display: grid;
           place-items: center;
           border-radius: 15px;
-          background: #dcfce7;
+          background: #dbeafe;
           font-size: 27px;
           flex-shrink: 0;
         }
@@ -1277,7 +1773,7 @@ const SafePlaces = () => {
         .verified-banner h2 {
           margin: 0 0 3px;
           font-size: 20px;
-          color: #166534;
+          color: #1d4ed8;
         }
 
         .verified-banner p {
@@ -1292,12 +1788,13 @@ const SafePlaces = () => {
           padding: 8px 16px;
           border-radius: 12px;
           background: white;
-          border: 1px solid #dcfce7;
+          border: 1px solid #dbeafe;
+          flex-shrink: 0;
         }
 
         .verified-total strong {
           display: block;
-          color: #15803d;
+          color: #2563eb;
           font-size: 20px;
         }
 
@@ -1306,6 +1803,10 @@ const SafePlaces = () => {
           color: var(--text-muted);
           font-size: 11px;
         }
+
+        /* ================================================
+           MAP / PLACES SECTIONS
+        ================================================ */
 
         .map-section,
         .places-section {
@@ -1331,6 +1832,10 @@ const SafePlaces = () => {
           font-size: 14px;
         }
 
+        /* ================================================
+           PLACES GRID
+        ================================================ */
+
         .places-grid {
           display: grid;
           grid-template-columns:
@@ -1348,11 +1853,15 @@ const SafePlaces = () => {
 
         .safe-place-card:hover {
           transform: translateY(-4px);
-          border-color: #bbf7d0;
+          border-color: #bfdbfe;
           box-shadow:
             0 15px 35px
             rgba(30, 27, 75, 0.1);
         }
+
+        /* ================================================
+           PLACE HEADER
+        ================================================ */
 
         .place-header {
           display: flex;
@@ -1366,18 +1875,21 @@ const SafePlaces = () => {
           display: grid;
           place-items: center;
           border-radius: 12px;
-          background: rgba(124, 58, 237, 0.1);
+          background:
+            rgba(124, 58, 237, 0.1);
           font-size: 24px;
           flex-shrink: 0;
         }
 
         .place-title {
           flex: 1;
+          min-width: 0;
         }
 
         .place-title h3 {
           margin: 0;
           font-size: 17px;
+          line-height: 1.35;
         }
 
         .place-title span {
@@ -1387,16 +1899,9 @@ const SafePlaces = () => {
           font-size: 13px;
         }
 
-        .verified {
-          font-size: 11px;
-          font-weight: 800;
-          color: #15803d;
-          background: #dcfce7;
-          border: 1px solid #bbf7d0;
-          padding: 5px 8px;
-          border-radius: 20px;
-          white-space: nowrap;
-        }
+        /* ================================================
+           DESCRIPTION
+        ================================================ */
 
         .place-description {
           margin: 14px 0 0;
@@ -1405,15 +1910,19 @@ const SafePlaces = () => {
           line-height: 1.6;
         }
 
+        /* ================================================
+           SOURCE / RATING ROW
+        ================================================ */
+
         .rating-row {
           display: flex;
           align-items: center;
           gap: 10px;
           margin: 14px 0;
           padding: 8px 10px;
-          background: #fffbeb;
+          background: #f8fafc;
           border-radius: 10px;
-          color: #92400e;
+          color: #475569;
           font-size: 12px;
           font-weight: 700;
         }
@@ -1422,6 +1931,10 @@ const SafePlaces = () => {
           color: var(--text-muted);
           font-weight: 600;
         }
+
+        /* ================================================
+           INFORMATION
+        ================================================ */
 
         .place-info {
           margin: 16px 0;
@@ -1435,9 +1948,14 @@ const SafePlaces = () => {
         }
 
         .place-info .distance {
-          color: var(--primary);
+          color:
+            var(--primary, #7c3aed);
           font-weight: 800;
         }
+
+        /* ================================================
+           ACTIONS
+        ================================================ */
 
         .place-actions {
           display: flex;
@@ -1447,6 +1965,10 @@ const SafePlaces = () => {
         .place-actions button {
           flex: 1;
         }
+
+        /* ================================================
+           EMPTY STATE
+        ================================================ */
 
         .empty-state {
           text-align: center;
@@ -1458,6 +1980,10 @@ const SafePlaces = () => {
           margin-bottom: 10px;
         }
 
+        .empty-state h3 {
+          margin: 5px 0;
+        }
+
         .empty-state p {
           color: var(--text-muted);
           max-width: 500px;
@@ -1465,21 +1991,9 @@ const SafePlaces = () => {
           line-height: 1.6;
         }
 
-        .error-card {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 15px;
-          padding: 15px;
-          margin-bottom: 20px;
-          border-left: 4px solid #dc2626;
-          background: #fff7f7;
-        }
-
-        .error-card p {
-          margin: 5px 0 0;
-          color: var(--text-muted);
-        }
+        /* ================================================
+           SAFETY NOTICE
+        ================================================ */
 
         .safety-notice {
           display: flex;
@@ -1487,12 +2001,14 @@ const SafePlaces = () => {
           gap: 15px;
           padding: 18px;
           margin-top: 25px;
-          border-left: 4px solid
+          border-left:
+            4px solid
             var(--primary, #7c3aed);
         }
 
         .notice-icon {
           font-size: 28px;
+          flex-shrink: 0;
         }
 
         .safety-notice h3 {
@@ -1505,6 +2021,10 @@ const SafePlaces = () => {
           line-height: 1.6;
         }
 
+        /* ================================================
+           LOADING
+        ================================================ */
+
         .safeplaces-loading {
           min-height: 60vh;
           display: flex;
@@ -1512,18 +2032,27 @@ const SafePlaces = () => {
           justify-content: center;
           align-items: center;
           text-align: center;
+          padding: 20px;
         }
 
         .loading-icon {
           font-size: 50px;
-          animation: pulse 1.2s infinite;
+          animation:
+            shaktiPulse 1.2s infinite;
+        }
+
+        .safeplaces-loading h2 {
+          margin-bottom: 8px;
         }
 
         .safeplaces-loading p {
           color: var(--text-muted);
+          max-width: 550px;
+          line-height: 1.6;
         }
 
-        @keyframes pulse {
+        @keyframes shaktiPulse {
+
           0%,
           100% {
             transform: scale(1);
@@ -1532,7 +2061,12 @@ const SafePlaces = () => {
           50% {
             transform: scale(1.15);
           }
+
         }
+
+        /* ================================================
+           TABLET
+        ================================================ */
 
         @media (max-width: 768px) {
 
@@ -1562,29 +2096,38 @@ const SafePlaces = () => {
             grid-template-columns: 1fr;
           }
 
+          .section-header {
+            align-items: flex-start;
+          }
+
           .verified-banner {
             align-items: flex-start;
           }
 
-          .verified-total {
-            margin-left: auto;
-          }
-
-          .verified {
-            display: none;
-          }
-
         }
 
+        /* ================================================
+           MOBILE
+        ================================================ */
+
         @media (max-width: 480px) {
+
+          .safeplaces-page {
+            padding: 10px;
+          }
 
           .page-title {
             font-size: 26px;
           }
 
+          .page-subtitle {
+            font-size: 14px;
+          }
+
           .filter-row {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns:
+              1fr 1fr;
           }
 
           .filter-button {
@@ -1602,6 +2145,21 @@ const SafePlaces = () => {
           .verified-total {
             margin-left: 0;
             width: 100%;
+            box-sizing: border-box;
+          }
+
+          .error-card {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .error-card
+            .secondary-button {
+            width: 100%;
+          }
+
+          .location-content {
+            align-items: flex-start;
           }
 
         }
