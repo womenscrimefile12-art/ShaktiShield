@@ -286,17 +286,44 @@ const Login = () => {
                     position: "absolute",
                     right: "0.7rem",
                     top: "50%",
-                    transform: "translateY(-50%)",
+                    transform:
+                      "translateY(-50%)",
                     border: "none",
                     background: "transparent",
                     color: "var(--text-muted)",
                     fontSize: "1.1rem",
                     padding: "0.25rem",
+                    cursor: loading
+                      ? "not-allowed"
+                      : "pointer",
                   }}
                 >
                   {showPassword ? "🙈" : "👁️"}
                 </button>
               </div>
+            </div>
+
+            {/* Forgot Password */}
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginTop: "-0.5rem",
+                marginBottom: "0.75rem",
+              }}
+            >
+              <Link
+                to="/forgot-password"
+                style={{
+                  color: "#9333ea",
+                  fontSize: "0.82rem",
+                  fontWeight: 700,
+                  textDecoration: "none",
+                }}
+              >
+                Forgot password?
+              </Link>
             </div>
 
             {/* Sign In */}
@@ -370,6 +397,7 @@ const Login = () => {
           }}
         >
           <span>🔒</span>
+
           <span>
             Your account and safety information are
             protected.

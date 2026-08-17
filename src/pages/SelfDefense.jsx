@@ -1,62 +1,94 @@
 import { useEffect, useMemo, useState } from "react";
 import { incidentAPI } from "../services/api";
 
+/* =====================================================
+   IMAGE FALLBACK
+===================================================== */
+
+const DEFAULT_IMAGE =
+  "https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=1200&q=80";
+
+/* =====================================================
+   DEFAULT SELF DEFENSE ARTICLES
+===================================================== */
+
 const DEFAULT_ARTICLES = [
   {
     _id: "sd1",
     title: "Basic Stance & Awareness",
     category: "Awareness",
     icon: "🧍‍♀️",
+    image:
+      "https://images.unsplash.com/photo-1555597673-b21d5c935865?auto=format&fit=crop&w=1200&q=80",
     content:
       "Stand with your feet approximately shoulder-width apart and keep your knees slightly bent. Maintain a balanced posture and keep your hands in a comfortable defensive position. Stay aware of your surroundings, identify nearby exits, and avoid becoming distracted while walking alone.",
     author: "ShaktiShield Team",
   },
+
   {
     _id: "sd2",
     title: "Palm Heel Strike",
     category: "Basic Technique",
     icon: "✋",
+    image:
+      "https://images.unsplash.com/photo-1555597673-b21d5c935865?auto=format&fit=crop&w=1200&q=80",
     content:
       "The palm heel can be used as a simple defensive technique when you need to create distance from an aggressor. Keep your fingers protected and focus on maintaining your balance. The primary goal is to create an opportunity to move away and reach a safe location rather than continue a confrontation.",
     author: "ShaktiShield Team",
   },
+
   {
     _id: "sd3",
     title: "Knee Strike",
     category: "Basic Technique",
     icon: "🥋",
+    image:
+      "https://images.unsplash.com/photo-1606335543042-57c525922933?auto=format&fit=crop&w=1200&q=80",
     content:
       "A knee strike can be useful at very close range if you are unable to safely disengage. Maintain your balance and use the movement to create enough space to escape. Once you have an opportunity, move toward a populated and secure area and seek help.",
     author: "ShaktiShield Team",
   },
+
   {
     _id: "sd4",
     title: "Breaking a Wrist Grab",
     category: "Escape",
     icon: "🤝",
+    image:
+      "https://images.unsplash.com/photo-1599058917212-d750089bc07e?auto=format&fit=crop&w=1200&q=80",
     content:
       "If someone grabs your wrist, focus on creating space and moving toward the weakest part of the grip. Keep your movement controlled and immediately try to move away from the person. Once free, do not remain in the confrontation—move toward safety and seek assistance.",
     author: "ShaktiShield Team",
   },
+
   {
     _id: "sd5",
     title: "Verbal De-escalation",
     category: "Awareness",
     icon: "🗣️",
+    image:
+      "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=1200&q=80",
     content:
       "Use a clear and confident voice to establish boundaries. Avoid unnecessary confrontation and try to maintain a safe distance. If the situation becomes threatening, attract attention from people nearby and move toward a safer location.",
     author: "ShaktiShield Team",
   },
+
   {
     _id: "sd6",
     title: "Creating an Escape Opportunity",
     category: "Escape",
     icon: "🏃‍♀️",
+    image:
+      "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=1200&q=80",
     content:
       "The safest objective in many dangerous situations is to create an opportunity to escape. Look for exits, move toward well-lit public areas, and attract attention when appropriate. Once you are safe, contact a trusted person or emergency service.",
     author: "ShaktiShield Team",
   },
 ];
+
+/* =====================================================
+   SELF DEFENSE COMPONENT
+===================================================== */
 
 const SelfDefense = () => {
   const [articles, setArticles] = useState([]);
@@ -139,10 +171,23 @@ const SelfDefense = () => {
     const query = search.trim().toLowerCase();
 
     return displayArticles.filter((article) => {
+      const title = String(
+        article.title || ""
+      ).toLowerCase();
+
+      const content = String(
+        article.content || ""
+      ).toLowerCase();
+
+      const articleCategory = String(
+        article.category || ""
+      ).toLowerCase();
+
       const matchesSearch =
         !query ||
-        article.title?.toLowerCase().includes(query) ||
-        article.content?.toLowerCase().includes(query);
+        title.includes(query) ||
+        content.includes(query) ||
+        articleCategory.includes(query);
 
       const matchesCategory =
         category === "All" ||
@@ -151,6 +196,31 @@ const SelfDefense = () => {
       return matchesSearch && matchesCategory;
     });
   }, [displayArticles, search, category]);
+
+  /* =====================================================
+     OPEN ARTICLE
+  ===================================================== */
+
+  const openArticle = (article) => {
+    setSelected(article);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  /* =====================================================
+     IMAGE FALLBACK
+  ===================================================== */
+
+  const getArticleImage = (article) => {
+    return (
+      article.image ||
+      article.imageUrl ||
+      DEFAULT_IMAGE
+    );
+  };
 
   /* =====================================================
      ARTICLE DETAIL VIEW
@@ -174,6 +244,29 @@ const SelfDefense = () => {
 
         <article className="card safety-article">
 
+          {/* HERO IMAGE */}
+
+          <div className="self-defense-detail-image">
+            <img
+              src={getArticleImage(selected)}
+              alt={selected.title || "Self defense"}
+              onError={(e) => {
+                e.currentTarget.src = DEFAULT_IMAGE;
+              }}
+            />
+
+            <div className="self-defense-image-overlay">
+              <span>
+                {selected.icon || "🥋"}
+              </span>
+
+              <span>
+                {selected.category ||
+                  "Self Defense"}
+              </span>
+            </div>
+          </div>
+
           <div className="article-header">
 
             <div
@@ -189,7 +282,8 @@ const SelfDefense = () => {
             </div>
 
             <span className="article-category">
-              {selected.category || "Self Defense"}
+              {selected.category ||
+                "Self Defense"}
             </span>
 
             <h1 className="page-title article-title">
@@ -197,7 +291,9 @@ const SelfDefense = () => {
             </h1>
 
             <p className="article-author">
-              By {selected.author || "ShaktiShield Team"}
+              By{" "}
+              {selected.author ||
+                "ShaktiShield Team"}
             </p>
 
           </div>
@@ -218,7 +314,11 @@ const SelfDefense = () => {
               gap: "0.75rem",
             }}
           >
-            <span style={{ fontSize: "1.2rem" }}>
+            <span
+              style={{
+                fontSize: "1.2rem",
+              }}
+            >
               🛡️
             </span>
 
@@ -229,15 +329,71 @@ const SelfDefense = () => {
                 lineHeight: 1.7,
               }}
             >
-              Self-defense techniques should primarily
-              be used to create an opportunity to escape.
-              Whenever possible, avoid confrontation,
-              move toward a safe public location, and
-              seek help.
+              Self-defense techniques should
+              primarily be used to create an
+              opportunity to escape. Whenever
+              possible, avoid confrontation,
+              move toward a safe public location,
+              and seek help.
             </p>
           </div>
 
         </article>
+
+        {/* PAGE CSS */}
+
+        <style>{`
+
+          .self-defense-detail-image {
+            position: relative;
+            width: 100%;
+            height: 340px;
+            overflow: hidden;
+            border-radius: 18px;
+            margin-bottom: 2rem;
+            background: #f1f5f9;
+          }
+
+          .self-defense-detail-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+          }
+
+          .self-defense-image-overlay {
+            position: absolute;
+            left: 20px;
+            bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            border-radius: 12px;
+            background: rgba(15, 23, 42, 0.78);
+            color: white;
+            font-weight: 700;
+            backdrop-filter: blur(8px);
+          }
+
+          .self-defense-image-overlay span:first-child {
+            font-size: 1.5rem;
+          }
+
+          @media (max-width: 600px) {
+            .self-defense-detail-image {
+              height: 230px;
+              border-radius: 14px;
+            }
+
+            .self-defense-image-overlay {
+              left: 12px;
+              bottom: 12px;
+              font-size: 0.85rem;
+            }
+          }
+
+        `}</style>
 
       </div>
     );
@@ -251,25 +407,47 @@ const SelfDefense = () => {
     <div className="safety-tips-page">
 
       {/* =================================================
-          HEADER
+          HERO SECTION
       ================================================= */}
 
-      <div className="page-header">
+      <div className="self-defense-hero">
 
-        <span className="section-label">
-          PERSONAL SAFETY
-        </span>
+        <div className="self-defense-hero-content">
 
-        <h1 className="page-title">
-          Self Defense Techniques
-        </h1>
+          <span className="section-label">
+            PERSONAL SAFETY
+          </span>
 
-        <p className="page-description">
-          Learn basic awareness, escape, and personal
-          safety techniques. The goal of self-defense
-          is to stay safe, create distance, and reach
-          a secure location.
-        </p>
+          <h1 className="page-title">
+            Self Defense Techniques
+          </h1>
+
+          <p className="page-description">
+            Learn basic awareness, escape, and
+            personal safety techniques. The goal
+            of self-defense is to stay safe,
+            create distance, and reach a secure
+            location.
+          </p>
+
+        </div>
+
+        <div className="self-defense-hero-image">
+
+          <img
+            src={DEFAULT_ARTICLES[0].image}
+            alt="Self defense awareness"
+            onError={(e) => {
+              e.currentTarget.src =
+                DEFAULT_IMAGE;
+            }}
+          />
+
+          <div className="hero-image-label">
+            🛡️ Stay Aware • Stay Safe
+          </div>
+
+        </div>
 
       </div>
 
@@ -317,11 +495,11 @@ const SelfDefense = () => {
                 lineHeight: 1.7,
               }}
             >
-              These guides are for general awareness
-              and education. Consider taking a
-              professional self-defense course to learn
-              techniques safely under qualified
-              supervision.
+              These guides are for general
+              awareness and education. Consider
+              taking a professional self-defense
+              course to learn techniques safely
+              under qualified supervision.
             </p>
 
           </div>
@@ -331,7 +509,7 @@ const SelfDefense = () => {
       </div>
 
       {/* =================================================
-          ERROR / FALLBACK MESSAGE
+          ERROR
       ================================================= */}
 
       {error && (
@@ -395,9 +573,13 @@ const SelfDefense = () => {
             key={item}
             type="button"
             className={`category-button ${
-              category === item ? "active" : ""
+              category === item
+                ? "active"
+                : ""
             }`}
-            onClick={() => setCategory(item)}
+            onClick={() =>
+              setCategory(item)
+            }
           >
             {item}
           </button>
@@ -436,9 +618,10 @@ const SelfDefense = () => {
               <div
                 className="skeleton"
                 style={{
-                  width: "50px",
-                  height: "50px",
+                  width: "100%",
+                  height: "180px",
                   marginBottom: "1rem",
+                  borderRadius: "14px",
                 }}
               />
 
@@ -457,6 +640,7 @@ const SelfDefense = () => {
           ))}
 
         </div>
+
       ) : filteredArticles.length === 0 ? (
 
         /* =================================================
@@ -474,9 +658,10 @@ const SelfDefense = () => {
           </h3>
 
           <p>
-            We couldn't find any self-defense guides
-            matching your search. Try another keyword
-            or select a different category.
+            We couldn't find any self-defense
+            guides matching your search.
+            Try another keyword or select a
+            different category.
           </p>
 
           <button
@@ -504,9 +689,9 @@ const SelfDefense = () => {
 
             <article
               key={article._id}
-              className="card safety-card"
+              className="card safety-card self-defense-card"
               onClick={() =>
-                setSelected(article)
+                openArticle(article)
               }
               role="button"
               tabIndex={0}
@@ -516,63 +701,80 @@ const SelfDefense = () => {
                   e.key === " "
                 ) {
                   e.preventDefault();
-                  setSelected(article);
+                  openArticle(article);
                 }
               }}
             >
 
-              {/* CARD TOP */}
+              {/* IMAGE */}
 
-              <div className="safety-card-top">
+              <div className="self-defense-card-image">
 
-                <div className="safety-icon">
+                <img
+                  src={getArticleImage(article)}
+                  alt={
+                    article.title ||
+                    "Self defense technique"
+                  }
+                  loading="lazy"
+                  onError={(e) => {
+                    e.currentTarget.src =
+                      DEFAULT_IMAGE;
+                  }}
+                />
+
+                <div className="self-defense-card-icon">
                   {article.icon || "🥋"}
                 </div>
 
-                <span className="article-category">
-                  {article.category ||
-                    "Self Defense"}
-                </span>
-
               </div>
 
-              {/* TITLE */}
+              {/* CARD CONTENT */}
 
-              <h2 className="safety-card-title">
-                {article.title}
-              </h2>
+              <div className="self-defense-card-content">
 
-              {/* DESCRIPTION */}
+                <div className="safety-card-top">
 
-              <p className="safety-card-description">
-                {article.content?.length > 140
-                  ? `${article.content.substring(
-                      0,
-                      140
-                    )}...`
-                  : article.content}
-              </p>
+                  <span className="article-category">
+                    {article.category ||
+                      "Self Defense"}
+                  </span>
 
-              {/* FOOTER */}
+                </div>
 
-              <div className="safety-card-footer">
+                <h2 className="safety-card-title">
+                  {article.title}
+                </h2>
 
-                <span className="article-author">
-                  By{" "}
-                  {article.author ||
-                    "ShaktiShield Team"}
-                </span>
+                <p className="safety-card-description">
+                  {article.content?.length > 140
+                    ? `${article.content.substring(
+                        0,
+                        140
+                      )}...`
+                    : article.content}
+                </p>
 
-                <button
-                  type="button"
-                  className="read-more-button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelected(article);
-                  }}
-                >
-                  Learn More →
-                </button>
+                <div className="safety-card-footer">
+
+                  <span className="article-author">
+                    By{" "}
+                    {article.author ||
+                      "ShaktiShield Team"}
+                  </span>
+
+                  <button
+                    type="button"
+                    className="read-more-button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openArticle(article);
+                    }}
+                  >
+                    Learn More →
+                  </button>
+
+                </div>
 
               </div>
 
@@ -581,6 +783,7 @@ const SelfDefense = () => {
           ))}
 
         </div>
+
       )}
 
       {/* =================================================
@@ -631,10 +834,11 @@ const SelfDefense = () => {
                 lineHeight: 1.7,
               }}
             >
-              Your first priority should be getting
-              to a safe location. Use the ShaktiShield
-              SOS feature or contact the appropriate
-              emergency service if you need immediate
+              Your first priority should be
+              getting to a safe location. Use
+              the ShaktiShield SOS feature or
+              contact the appropriate emergency
+              service if you need immediate
               assistance.
             </p>
 
@@ -643,6 +847,211 @@ const SelfDefense = () => {
         </div>
 
       </div>
+
+      {/* =================================================
+          PAGE-SPECIFIC CSS
+      ================================================= */}
+
+      <style>{`
+
+        /* ================================================
+           HERO
+        ================================================ */
+
+        .self-defense-hero {
+          display: grid;
+          grid-template-columns: 1.15fr 0.85fr;
+          gap: 30px;
+          align-items: center;
+          margin-bottom: 28px;
+        }
+
+        .self-defense-hero-content {
+          padding: 10px 0;
+        }
+
+        .self-defense-hero-image {
+          position: relative;
+          height: 260px;
+          border-radius: 22px;
+          overflow: hidden;
+          box-shadow:
+            0 20px 45px
+            rgba(30, 27, 75, 0.15);
+        }
+
+        .self-defense-hero-image img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .hero-image-label {
+          position: absolute;
+          bottom: 15px;
+          left: 15px;
+          padding: 9px 14px;
+          border-radius: 12px;
+          background: rgba(15, 23, 42, 0.78);
+          color: white;
+          font-size: 13px;
+          font-weight: 700;
+          backdrop-filter: blur(8px);
+        }
+
+        /* ================================================
+           CARD IMAGE
+        ================================================ */
+
+        .self-defense-card {
+          padding: 0;
+          overflow: hidden;
+          cursor: pointer;
+          transition:
+            transform 0.25s ease,
+            box-shadow 0.25s ease;
+        }
+
+        .self-defense-card:hover {
+          transform: translateY(-5px);
+          box-shadow:
+            0 18px 40px
+            rgba(30, 27, 75, 0.13);
+        }
+
+        .self-defense-card:focus-visible {
+          outline:
+            3px solid
+            var(--primary, #7c3aed);
+          outline-offset: 3px;
+        }
+
+        .self-defense-card-image {
+          position: relative;
+          width: 100%;
+          height: 190px;
+          overflow: hidden;
+          background: #f1f5f9;
+        }
+
+        .self-defense-card-image img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+          transition:
+            transform 0.35s ease;
+        }
+
+        .self-defense-card:hover
+        .self-defense-card-image img {
+          transform: scale(1.05);
+        }
+
+        .self-defense-card-icon {
+          position: absolute;
+          bottom: 12px;
+          left: 14px;
+          width: 48px;
+          height: 48px;
+          display: grid;
+          place-items: center;
+          border-radius: 14px;
+          background: white;
+          font-size: 24px;
+          box-shadow:
+            0 8px 20px
+            rgba(0, 0, 0, 0.16);
+        }
+
+        .self-defense-card-content {
+          padding: 18px;
+        }
+
+        .self-defense-card-content
+        .safety-card-top {
+          margin-bottom: 10px;
+        }
+
+        /* ================================================
+           DETAIL IMAGE
+        ================================================ */
+
+        .self-defense-detail-image {
+          position: relative;
+          width: 100%;
+          height: 340px;
+          overflow: hidden;
+          border-radius: 18px;
+          margin-bottom: 2rem;
+          background: #f1f5f9;
+        }
+
+        .self-defense-detail-image img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .self-defense-image-overlay {
+          position: absolute;
+          left: 20px;
+          bottom: 20px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 15px;
+          border-radius: 12px;
+          background:
+            rgba(15, 23, 42, 0.78);
+          color: white;
+          font-weight: 700;
+          backdrop-filter: blur(8px);
+        }
+
+        .self-defense-image-overlay
+        span:first-child {
+          font-size: 1.5rem;
+        }
+
+        /* ================================================
+           MOBILE
+        ================================================ */
+
+        @media (max-width: 800px) {
+
+          .self-defense-hero {
+            grid-template-columns: 1fr;
+          }
+
+          .self-defense-hero-image {
+            height: 230px;
+          }
+
+        }
+
+        @media (max-width: 600px) {
+
+          .self-defense-card-image {
+            height: 180px;
+          }
+
+          .self-defense-detail-image {
+            height: 230px;
+            border-radius: 14px;
+          }
+
+          .self-defense-image-overlay {
+            left: 12px;
+            bottom: 12px;
+            font-size: 0.85rem;
+          }
+
+        }
+
+      `}</style>
 
     </div>
   );

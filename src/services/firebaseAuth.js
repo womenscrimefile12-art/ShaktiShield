@@ -1,3 +1,5 @@
+// src/services/firebaseAuth.js
+
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -13,9 +15,8 @@ import {
 
 import { auth, db } from "./firebase";
 
-
 // ==========================================
-// REGISTER
+// REGISTER USER
 // ==========================================
 
 export const registerUser = async ({
@@ -24,25 +25,26 @@ export const registerUser = async ({
   phone,
   password,
 }) => {
-
-  const credential =
-    await createUserWithEmailAndPassword(
-      auth,
-      email,
-      password
-    );
+  // Create Firebase Authentication account
+  const credential = await createUserWithEmailAndPassword(
+    auth,
+    email,
+    password
+  );
 
   const firebaseUser = credential.user;
 
+  // User data stored in Firestore
   const userData = {
     uid: firebaseUser.uid,
-    name,
-    email: firebaseUser.email,
+    name: name || "",
+    email: firebaseUser.email || email,
     phone: phone || "",
     role: "user",
     createdAt: new Date().toISOString(),
   };
 
+  // Create users/{uid} document
   await setDoc(
     doc(db, "users", firebaseUser.uid),
     userData
@@ -51,51 +53,45 @@ export const registerUser = async ({
   return userData;
 };
 
-
 // ==========================================
-// LOGIN
+// LOGIN USER
 // ==========================================
 
-export const loginUser = async (
-  email,
-  password
-) => {
-
-  const credential =
-    await signInWithEmailAndPassword(
-      auth,
-      email,
-      password
-    );
+export const loginUser = async (email, password) => {
+  // Sign in using Firebase Authentication
+  const credential = await signInWithEmailAndPassword(
+    auth,
+    email,
+    password
+  );
 
   const firebaseUser = credential.user;
 
+  // Get additional user information from Firestore
   const userDoc = await getDoc(
     doc(db, "users", firebaseUser.uid)
   );
 
+  // If Firestore document exists
   if (userDoc.exists()) {
     return userDoc.data();
   }
 
+  // Fallback if user document does not exist
   return {
     uid: firebaseUser.uid,
     name: "",
-    email: firebaseUser.email,
+    email: firebaseUser.email || email,
     phone: "",
     role: "user",
   };
 };
 
-
 // ==========================================
 // GET USER DATA
 // ==========================================
 
-export const getUserData = async (
-  firebaseUser
-) => {
-
+export const getUserData = async (firebaseUser) => {
   if (!firebaseUser) {
     return null;
   }
@@ -108,25 +104,26 @@ export const getUserData = async (
     return userDoc.data();
   }
 
+  // Fallback user data
   return {
     uid: firebaseUser.uid,
-    email: firebaseUser.email,
+    name: "",
+    email: firebaseUser.email || "",
+    phone: "",
     role: "user",
   };
 };
 
-
 // ==========================================
-// LOGOUT
+// LOGOUT USER
 // ==========================================
 
 export const logoutUser = async () => {
   await signOut(auth);
 };
 
-
 // ==========================================
-// AUTH LISTENER
+// AUTHENTICATION LISTENER
 // ==========================================
 
 export const listenToAuth = (callback) => {
